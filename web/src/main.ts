@@ -115,8 +115,8 @@ function renderDeck() {
   const recommendation = card.options.find(option => option.is_recommended) || card.options[0];
   const completed = editMode ? cardIndex : current.cards.length - pending.length;
   app.innerHTML = `<section class="shell">
-    <div class="topline review-topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div></div>
-    <div class="deck-header"><button class="back" aria-label="Back to inbox">← Inbox</button><span class="progress">${completed + 1} of ${current.cards.length}</span></div>
+    <div class="topline review-topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div><span class="progress">${completed + 1} of ${current.cards.length}</span></div>
+    <div class="deck-header"><button class="back" aria-label="Back to inbox">← Inbox</button></div>
     <article class="card" tabindex="0" aria-label="Decision card: ${escapeHtml(card.title)}" aria-describedby="swipe-help">
       <div class="item-row"><span class="eyebrow">${escapeHtml(card.source_profile)}</span><span class="badge">${escapeHtml(card.priority)}</span></div>
       <h2>${escapeHtml(card.title)}</h2>

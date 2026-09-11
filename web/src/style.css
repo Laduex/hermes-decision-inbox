@@ -23,6 +23,7 @@ button { cursor: pointer; }
 
 .topline { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
 .topline h1 { margin: 0; font-size: 1.6rem; letter-spacing: -.03em; }
+.review-topline { margin-bottom: 8px; }
 .eyebrow { color: #65717c; font-size: .78rem; text-transform: uppercase; letter-spacing: .11em; }
 .tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 18px 0; }
 .tabs button { border: 0; border-radius: 999px; padding: 10px; color: #58636e; background: #e7eaee; }
