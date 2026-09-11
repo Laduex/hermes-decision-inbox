@@ -28,7 +28,7 @@ The matching Hermes source worktree is `/Users/vaughndazo/Documents/Codex/worktr
 python3 -m venv .venv
 .venv/bin/pip install -e '.[test]'
 ./scripts/setup_local_home.sh
-cd web && npm ci
+npm --prefix web ci
 ./scripts/start_local_dashboard.sh
 ```
 
