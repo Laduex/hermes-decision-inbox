@@ -154,7 +154,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     @app.get("/api/inbox")
-    async def inbox(tab: str = Query("new", pattern="^(new|deferred|completed)$"), _: int = Depends(owner)):
+    async def inbox(tab: str = Query("all", pattern="^(all|new|deferred|completed)$"), _: int = Depends(owner)):
         return {"items": db.inbox(tab)}
 
     @app.get("/api/decisions/{decision_id}")

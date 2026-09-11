@@ -39,6 +39,8 @@ button { cursor: pointer; }
 .item-title { font-weight: 750; margin: 5px 0 8px; }
 .meta { color: #687580; font-size: .85rem; }
 .badge { padding: 4px 8px; border-radius: 999px; background: #e7eef5; color: #31506a; font-size: .72rem; font-weight: 700; text-transform: uppercase; }
+.status-chip { padding: 4px 8px; border-radius: 999px; color: #315f82; background: #dcecf6; font-size: .72rem; font-weight: 750; }
+.archived-item { cursor: default; opacity: .76; }
 
 .deck-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .back { border: 0; background: transparent; color: #315f82; padding: 8px 0; }
@@ -106,6 +108,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-radi
   .tabs button, .secondary { color: #bdc9d3; background: #27313a; }
   .tabs button.active, .approve, .primary { color: #10151a; background: #edf2f6; }
   .badge, .alternatives, .item-action { color: #b9d6ea; background: #263846; }
+  .status-chip { color: #b9d6ea; background: #263846; }
   .apply-action { color: #10151a; background: #edf2f6; }
   .recommendation { background: #20303b; }
   .back, .app-footer { color: #8dc7ed; }

@@ -262,7 +262,11 @@ class Database:
 
     def inbox(self, tab: str) -> list[dict[str, Any]]:
         with self.connect() as conn:
-            if tab == "completed":
+            if tab == "all":
+                rows = conn.execute(
+                    "SELECT * FROM decision_requests ORDER BY updated_at DESC",
+                ).fetchall()
+            elif tab == "completed":
                 rows = conn.execute(
                     "SELECT * FROM decision_requests WHERE status IN (?,?,?) ORDER BY updated_at DESC",
                     tuple(sorted(COMPLETED_STATES)),

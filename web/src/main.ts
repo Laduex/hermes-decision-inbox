@@ -5,11 +5,22 @@ import type { Card, Decision, Outcome } from "./types";
 const app = document.querySelector<HTMLElement>("#app")!;
 const toast = document.querySelector<HTMLElement>("#toast")!;
 let token = "";
-let activeTab = "new";
 let current: Decision | null = null;
 let cardIndex = 0;
 let editMode = false;
 let pollTimer = 0;
+
+const terminalStatuses = new Set(["COMPLETED", "EXPIRED", "CANCELLED", "ARCHIVED"]);
+
+function statusLabel(status: unknown): string {
+  const value = String(status || "");
+  if (value === "ARCHIVED") return "Archived";
+  if (value === "COMPLETED" || value === "EXPIRED" || value === "CANCELLED") return "Completed";
+  if (value === "READY_TO_APPLY") return "Ready to apply";
+  if (value === "APPLYING") return "Applying";
+  if (value === "BLOCKED") return "Blocked";
+  return "Review";
+}
 
 function showToast(message: string) {
   toast.textContent = message;
@@ -41,32 +52,38 @@ async function authenticate() {
   connectLiveUpdates();
 }
 
-async function loadInbox(tab = activeTab, directToCards = true) {
-  activeTab = tab;
+async function loadInbox(_tab = "all", directToCards = false) {
   current = null;
-  const data = await api<{items: Array<Record<string, unknown>>}>(`/api/inbox?tab=${tab}`);
-  if (tab === "new" && directToCards && data.items.length) {
-    await openDecision(String(data.items[0].decision_id));
+  const data = await api<{items: Array<Record<string, unknown>>}>("/api/inbox?tab=all");
+  const reviewItems = data.items.filter(item => !terminalStatuses.has(String(item.status)));
+  if (directToCards && reviewItems.length) {
+    await openDecision(String(reviewItems[0].decision_id));
     return;
   }
   app.innerHTML = `<section class="shell">
     <div class="topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div></div>
-    <nav class="tabs" aria-label="Inbox tabs">
-      ${[["new", "Review"], ["completed", "Completed"]].map(([value, label]) => `<button data-tab="${value}" class="${value === tab ? "active" : ""}">${label}</button>`).join("")}
-    </nav>
-    <div class="inbox-list">${data.items.length ? data.items.map(item => `
-      <article class="inbox-item">
-        <button class="inbox-open" data-decision="${escapeHtml(item.decision_id)}" aria-label="Open ${escapeHtml(item.title)}">
-          <div class="item-row"><span class="badge">${escapeHtml(item.priority)}</span></div>
+    <div class="inbox-list">${data.items.length ? data.items.map(item => {
+      const status = statusLabel(item.status);
+      const isReview = !terminalStatuses.has(String(item.status));
+      const openButton = isReview
+        ? `<button class="inbox-open" data-decision="${escapeHtml(item.decision_id)}" aria-label="Open ${escapeHtml(item.title)}">
+          <div class="item-row"><span class="status-chip">${status}</span><span class="badge">${escapeHtml(item.priority)}</span></div>
           <div class="item-title">${escapeHtml(item.title)}</div>
           <div class="meta">${escapeHtml(item.card_count)} card${item.card_count === 1 ? "" : "s"} · ${new Date(String(item.created_at)).toLocaleString()}</div>
-        </button>
+        </button>`
+        : `<div class="inbox-open archived-item" aria-label="${escapeHtml(status)}: ${escapeHtml(item.title)}">
+          <div class="item-row"><span class="status-chip">${status}</span><span class="badge">${escapeHtml(item.priority)}</span></div>
+          <div class="item-title">${escapeHtml(item.title)}</div>
+          <div class="meta">${escapeHtml(item.card_count)} card${item.card_count === 1 ? "" : "s"} · ${new Date(String(item.created_at)).toLocaleString()}</div>
+        </div>`;
+      return `
+      <article class="inbox-item">
+        ${openButton}
         ${item.can_apply ? `<div class="item-actions">
           <button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">Apply</button>
         </div>` : ""}
-      </article>`).join("") : `<div class="empty">Nothing here.</div>`}</div>
+      </article>`}).join("") : `<div class="empty">Nothing here.</div>`}</div>
   </section>`;
-  app.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach(button => button.onclick = () => loadInbox(button.dataset.tab));
   app.querySelectorAll<HTMLButtonElement>("[data-decision]").forEach(button => button.onclick = () => openDecision(button.dataset.decision!));
   app.querySelectorAll<HTMLButtonElement>("[data-apply-decision]").forEach(button => button.onclick = event => {
     event.stopPropagation();
@@ -86,12 +103,12 @@ function renderDeck() {
   if (!current) return;
   const pending = current.cards.filter(card => !card.response);
   if (!pending.length && !editMode) {
-    loadInbox("new", false);
+    loadInbox("all", false);
     return;
   }
   const deck = editMode ? current.cards : pending;
   if (!deck.length) {
-    loadInbox("new", false);
+    loadInbox("all", false);
     return;
   }
   const card = deck[Math.min(cardIndex, deck.length - 1)];
@@ -108,7 +125,7 @@ function renderDeck() {
     </article>
     <footer id="swipe-help" class="app-footer swipe-help" role="contentinfo">Swipe right to accept · left to reject · up to abstain · down for alternatives</footer>
   </section>`;
-  app.querySelector<HTMLButtonElement>(".back")!.onclick = () => loadInbox("new", false);
+  app.querySelector<HTMLButtonElement>(".back")!.onclick = () => loadInbox("all", false);
   app.querySelectorAll<HTMLButtonElement>("[data-outcome]").forEach(button => {
     button.onclick = () => saveResponse(card, button.dataset.outcome as Outcome);
   });
@@ -185,7 +202,7 @@ async function saveResponse(card: Card, outcome: Outcome, selected: string | nul
     cardIndex += 1;
     if (cardIndex >= current.cards.length) {
       editMode = false;
-      await loadInbox("new", false);
+      await loadInbox("all", false);
       return;
     }
   }
@@ -252,7 +269,7 @@ async function applyDecision(item: Record<string, unknown>, button?: HTMLButtonE
       showToast("Decisions submitted");
     }
     navigator.vibrate?.([18, 30, 18]);
-    await loadInbox(activeTab, false);
+    await loadInbox("all", false);
   } catch (error) {
     if (button) button.disabled = false;
     showToast(error instanceof Error ? error.message : "Submission failed");
@@ -266,12 +283,12 @@ function connectLiveUpdates() {
     const message = JSON.parse(event.data);
     if (message.type === "decision_created") {
       showToast("A new decision arrived");
-      if (!current) loadInbox(activeTab);
+      if (!current) loadInbox("all");
     }
   };
   socket.onclose = () => {
     window.clearInterval(pollTimer);
-    pollTimer = window.setInterval(() => { if (!current) loadInbox(activeTab); }, 20_000);
+    pollTimer = window.setInterval(() => { if (!current) loadInbox("all"); }, 20_000);
     window.setTimeout(connectLiveUpdates, 5000);
   };
 }
