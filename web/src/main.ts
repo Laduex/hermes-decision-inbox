@@ -200,21 +200,18 @@ function showDetails(card: Card, focusAlternatives = false) {
     ${card.evidence.length ? `<h4>Evidence</h4><ul>${card.evidence.map(item => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</li>`).join("")}</ul>` : ""}
     ${card.execution ? `<h4>Recommended Wiki change</h4><pre>${escapeHtml(card.execution.proposed_content)}</pre>` : ""}
     ${alternatives.length ? `<label for="alternative">Choose an alternative</label><select id="alternative"><option value="">Choose…</option>${alternatives.map(option => `<option value="${escapeHtml(option.option_id)}">${escapeHtml(option.label)}</option>`).join("")}</select><pre class="alternative-preview" hidden></pre>` : `<p class="modal-empty">No alternative answers were provided for this card.</p>`}
-    <label for="note">Optional note</label><textarea id="note" rows="3" placeholder="Add instructions or a reason">${escapeHtml(card.response?.note || "")}</textarea>
     <div class="modal-actions"><button class="approve modal-accept">Accept</button>${alternatives.length ? `<button class="primary choose">Choose alternative</button>` : ""}<button class="secondary close">Close</button></div>`;
   document.body.append(dialog);
   dialog.querySelector<HTMLButtonElement>(".close")!.onclick = () => dialog.close();
   dialog.querySelector<HTMLButtonElement>(".modal-accept")!.onclick = () => {
-    const note = dialog.querySelector<HTMLTextAreaElement>("#note")!.value;
     dialog.close();
-    saveResponse(card, "recommended", null, note);
+    saveResponse(card, "recommended");
   };
   dialog.querySelector<HTMLButtonElement>(".choose")?.addEventListener("click", () => {
     const selected = dialog.querySelector<HTMLSelectElement>("#alternative")!.value;
     if (!selected) return showToast("Choose an alternative first");
-    const note = dialog.querySelector<HTMLTextAreaElement>("#note")!.value;
     dialog.close();
-    saveResponse(card, "alternative", selected, note);
+    saveResponse(card, "alternative", selected);
   });
   const select = dialog.querySelector<HTMLSelectElement>("#alternative");
   select?.addEventListener("change", () => {
