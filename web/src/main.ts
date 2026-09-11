@@ -17,7 +17,7 @@ function statusLabel(status: unknown): string {
   const value = String(status || "");
   if (value === "ARCHIVED") return "Archived";
   if (value === "COMPLETED" || value === "EXPIRED" || value === "CANCELLED") return "Completed";
-  if (value === "READY_TO_APPLY") return "Ready to apply";
+  if (value === "READY_TO_SUBMIT" || value === "READY_TO_APPLY") return "Completed";
   if (value === "APPLYING") return "Applying";
   if (value === "BLOCKED") return "Blocked";
   return "Review";
