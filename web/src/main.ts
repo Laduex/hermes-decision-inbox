@@ -114,7 +114,7 @@ async function openDecision(id: string, editing = false, viewing = false) {
 function renderDeck() {
   if (!current) return;
   const pending = current.cards.filter(card => !card.response);
-  if (!pending.length && !editMode) {
+  if (!pending.length && !editMode && !viewMode) {
     loadInbox("all", false);
     return;
   }
