@@ -50,29 +50,24 @@ async function loadInbox(tab = activeTab, directToCards = true) {
     return;
   }
   app.innerHTML = `<section class="shell">
-    <div class="topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div><span class="badge">${data.items.length} batch${data.items.length === 1 ? "" : "es"}</span></div>
+    <div class="topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div></div>
     <nav class="tabs" aria-label="Inbox tabs">
       ${[["new", "Review"], ["completed", "Completed"]].map(([value, label]) => `<button data-tab="${value}" class="${value === tab ? "active" : ""}">${label}</button>`).join("")}
     </nav>
     <div class="inbox-list">${data.items.length ? data.items.map(item => `
       <article class="inbox-item">
         <button class="inbox-open" data-decision="${escapeHtml(item.decision_id)}" aria-label="Open ${escapeHtml(item.title)}">
-          <div class="item-row"><span class="eyebrow">${escapeHtml(item.source_profile)}</span><span class="badge">${escapeHtml(item.priority)}</span></div>
+          <div class="item-row"><span class="badge">${escapeHtml(item.priority)}</span></div>
           <div class="item-title">${escapeHtml(item.title)}</div>
           <div class="meta">${escapeHtml(item.card_count)} card${item.card_count === 1 ? "" : "s"} · ${new Date(String(item.created_at)).toLocaleString()}</div>
         </button>
-        ${(item.can_apply || item.can_edit) ? `<div class="item-actions">
-          ${item.can_apply ? `<button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">Apply</button>` : ""}
-          ${item.can_edit ? `<button class="item-action edit-action" data-edit-decision="${escapeHtml(item.decision_id)}">Edit</button>` : ""}
+        ${item.can_apply ? `<div class="item-actions">
+          <button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">Apply</button>
         </div>` : ""}
       </article>`).join("") : `<div class="empty">Nothing here.</div>`}</div>
   </section>`;
   app.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach(button => button.onclick = () => loadInbox(button.dataset.tab));
   app.querySelectorAll<HTMLButtonElement>("[data-decision]").forEach(button => button.onclick = () => openDecision(button.dataset.decision!));
-  app.querySelectorAll<HTMLButtonElement>("[data-edit-decision]").forEach(button => button.onclick = event => {
-    event.stopPropagation();
-    openDecision(button.dataset.editDecision!, true);
-  });
   app.querySelectorAll<HTMLButtonElement>("[data-apply-decision]").forEach(button => button.onclick = event => {
     event.stopPropagation();
     const item = data.items.find(candidate => candidate.decision_id === button.dataset.applyDecision);
@@ -103,7 +98,7 @@ function renderDeck() {
   const recommendation = card.options.find(option => option.is_recommended) || card.options[0];
   const completed = editMode ? cardIndex : current.cards.length - pending.length;
   app.innerHTML = `<section class="shell">
-    <div class="topline review-topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div><span class="badge">1 BATCH</span></div>
+    <div class="topline review-topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div></div>
     <div class="deck-header"><button class="back" aria-label="Back to inbox">← Inbox</button><span class="progress">${completed + 1} of ${current.cards.length}</span></div>
     <article class="card" tabindex="0" aria-label="Decision card: ${escapeHtml(card.title)}" aria-describedby="swipe-help">
       <div class="item-row"><span class="eyebrow">${escapeHtml(card.source_profile)}</span><span class="badge">${escapeHtml(card.priority)}</span></div>

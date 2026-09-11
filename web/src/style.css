@@ -33,7 +33,6 @@ button { cursor: pointer; }
 .item-actions { display: flex; gap: 8px; margin-top: 14px; }
 .item-action { flex: 1; border: 0; border-radius: 11px; padding: 10px 12px; color: #31506a; background: #e7eef5; font-weight: 750; }
 .apply-action { color: white; background: #182029; }
-.edit-action { background: #e7eaee; }
 .item-row { display: flex; justify-content: space-between; gap: 10px; }
 .item-title { font-weight: 750; margin: 5px 0 8px; }
 .meta { color: #687580; font-size: .85rem; }
@@ -95,7 +94,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-radi
   .tabs button.active, .approve, .primary { color: #10151a; background: #edf2f6; }
   .badge, .alternatives, .item-action { color: #b9d6ea; background: #263846; }
   .apply-action { color: #10151a; background: #edf2f6; }
-  .edit-action { color: #bdc9d3; background: #27313a; }
   .recommendation { background: #20303b; }
   .back, .details-link, .swipe-help { color: #8dc7ed; }
   dialog { color: #edf2f6; background: #192129; }
