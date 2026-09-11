@@ -42,7 +42,7 @@ button { cursor: pointer; }
 .deck-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .back { border: 0; background: transparent; color: #315f82; padding: 8px 0; }
 .progress { color: #687580; font-variant-numeric: tabular-nums; }
-.card { touch-action: none; user-select: none; overscroll-behavior: contain; border-radius: 24px; padding: 22px; background: white; box-shadow: 0 18px 50px rgba(21, 31, 40, .14); transition: transform .18s ease, opacity .18s ease; outline: none; }
+.card { display: flex; flex-direction: column; touch-action: none; user-select: none; overscroll-behavior: contain; border-radius: 24px; padding: 22px; background: white; box-shadow: 0 18px 50px rgba(21, 31, 40, .14); transition: transform .18s ease, opacity .18s ease; outline: none; }
 .card.dragging { transition: none; cursor: grabbing; }
 .card:focus-visible { box-shadow: 0 0 0 3px #5b93bb, 0 18px 50px rgba(21, 31, 40, .14); }
 .card h2 { margin: 7px 0 8px; font-size: 1.55rem; letter-spacing: -.025em; }
@@ -56,8 +56,9 @@ button { cursor: pointer; }
 .alternatives { color: #31506a; background: #e7eef5; }
 .approve, .primary { color: white; background: #182029; }
 .secondary { color: #315f82; background: #e7eaee; }
-.details-link { width: 100%; border: 0; background: transparent; color: #315f82; padding: 14px 0 0; }
-.swipe-help { margin: 12px 4px 0; color: #687580; font-size: .78rem; line-height: 1.4; text-align: center; }
+.details-link { width: 100%; margin-top: auto; border: 0; background: transparent; color: #315f82; padding: 22px 0 0; }
+.app-footer { padding: 10px 4px 0; }
+.swipe-help { margin: 0; color: #687580; font-size: .78rem; line-height: 1.4; text-align: center; }
 
 .summary { display: grid; gap: 12px; }
 .summary-row { background: white; border-radius: 15px; padding: 13px; }

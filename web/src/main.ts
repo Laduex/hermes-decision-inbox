@@ -110,22 +110,15 @@ function renderDeck() {
       <h2>${escapeHtml(card.title)}</h2>
       <p>${escapeHtml(card.summary)}</p>
       <div class="recommendation"><span class="eyebrow">Hermes recommends</span><strong>${escapeHtml(recommendation.label)}</strong><span>${escapeHtml(recommendation.reason || recommendation.details)}</span></div>
-      <div class="actions">
-        <button class="decline" data-outcome="rejected" aria-label="Reject proposal">Reject</button>
-        <button class="pass" data-outcome="abstained" aria-label="Abstain from this proposal">Abstain</button>
-        <button class="alternatives" aria-label="Open alternative answers">Alternatives</button>
-        <button class="approve" data-outcome="recommended" aria-label="Accept recommendation">Accept</button>
-      </div>
       <button class="details-link">Details</button>
     </article>
-    <p id="swipe-help" class="swipe-help">Swipe right to accept · left to reject · up to abstain · down for alternatives</p>
+    <footer class="app-footer"><p id="swipe-help" class="swipe-help">Swipe right to accept · left to reject · up to abstain · down for alternatives</p></footer>
   </section>`;
   app.querySelector<HTMLButtonElement>(".back")!.onclick = () => loadInbox("new", false);
   app.querySelectorAll<HTMLButtonElement>("[data-outcome]").forEach(button => {
     button.onclick = () => saveResponse(card, button.dataset.outcome as Outcome);
   });
   app.querySelector<HTMLButtonElement>(".details-link")!.onclick = () => showDetails(card);
-  app.querySelector<HTMLButtonElement>(".alternatives")!.onclick = () => showDetails(card, true);
   bindSwipe(app.querySelector<HTMLElement>(".card")!, card);
 }
 
