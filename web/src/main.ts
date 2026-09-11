@@ -194,18 +194,14 @@ async function saveResponse(card: Card, outcome: Outcome, selected: string | nul
 
 function showDetails(card: Card, focusAlternatives = false) {
   const dialog = document.createElement("dialog");
+  dialog.className = "detail-modal";
   const alternatives = card.options.filter(option => !option.is_recommended);
-  dialog.innerHTML = `<h3>${escapeHtml(card.title)}</h3><p>${escapeHtml(card.details)}</p>
+  dialog.innerHTML = `<div class="modal-eyebrow">Alternative answers</div><h3>${escapeHtml(card.title)}</h3><p>${escapeHtml(card.details)}</p>
     ${card.evidence.length ? `<h4>Evidence</h4><ul>${card.evidence.map(item => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</li>`).join("")}</ul>` : ""}
     ${card.execution ? `<h4>Recommended Wiki change</h4><pre>${escapeHtml(card.execution.proposed_content)}</pre>` : ""}
-    ${alternatives.length ? `<label for="alternative">Alternative answer</label><select id="alternative"><option value="">Choose…</option>${alternatives.map(option => `<option value="${escapeHtml(option.option_id)}">${escapeHtml(option.label)}</option>`).join("")}</select><pre class="alternative-preview" hidden></pre>` : ""}
+    ${alternatives.length ? `<label for="alternative">Choose an alternative</label><select id="alternative"><option value="">Choose…</option>${alternatives.map(option => `<option value="${escapeHtml(option.option_id)}">${escapeHtml(option.label)}</option>`).join("")}</select><pre class="alternative-preview" hidden></pre>` : `<p class="modal-empty">No alternative answers were provided for this card.</p>`}
     <label for="note">Optional note</label><textarea id="note" rows="3" placeholder="Add instructions or a reason">${escapeHtml(card.response?.note || "")}</textarea>
-    <div class="actions">
-      <button class="decline quick" data-detail-outcome="rejected">Reject</button>
-      <button class="pass quick" data-detail-outcome="abstained">Abstain</button>
-      <button class="approve quick" data-detail-outcome="recommended">Accept</button>
-    </div>
-    <div class="summary-actions">${alternatives.length ? `<button class="primary choose">Choose alternative</button>` : ""}<button class="secondary close">Close</button></div>`;
+    <div class="modal-actions">${alternatives.length ? `<button class="primary choose">Choose alternative</button>` : ""}<button class="secondary close">Close</button></div>`;
   document.body.append(dialog);
   dialog.querySelector<HTMLButtonElement>(".close")!.onclick = () => dialog.close();
   dialog.querySelector<HTMLButtonElement>(".choose")?.addEventListener("click", () => {
@@ -222,13 +218,6 @@ function showDetails(card: Card, focusAlternatives = false) {
     const content = option?.execution?.proposed_content || option?.details || "";
     preview.textContent = content;
     preview.hidden = !content;
-  });
-  dialog.querySelectorAll<HTMLButtonElement>("[data-detail-outcome]").forEach(button => {
-    button.onclick = () => {
-      const note = dialog.querySelector<HTMLTextAreaElement>("#note")!.value;
-      dialog.close();
-      saveResponse(card, button.dataset.detailOutcome as Outcome, null, note);
-    };
   });
   dialog.addEventListener("close", () => dialog.remove());
   dialog.showModal();
