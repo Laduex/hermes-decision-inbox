@@ -61,7 +61,7 @@ async function loadInbox(_tab = "all", directToCards = false) {
     return;
   }
   app.innerHTML = `<section class="shell">
-    <div class="topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div></div>
+    <header class="app-header" aria-label="Weekly Memory Wiki decision inbox"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div></header>
     <div class="inbox-list">${data.items.length ? data.items.map(item => {
       const status = statusLabel(item.status);
       const isReview = !terminalStatuses.has(String(item.status));
@@ -120,7 +120,7 @@ function renderDeck() {
   const recommendation = card.options.find(option => option.is_recommended) || card.options[0];
   const completed = editMode ? cardIndex : current.cards.length - pending.length;
   app.innerHTML = `<section class="shell">
-    <div class="topline review-topline"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div><span class="progress">${completed + 1} of ${current.cards.length}</span></div>
+    <header class="app-header review-topline" aria-label="Weekly Memory Wiki card review"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div><span class="progress">${completed + 1} of ${current.cards.length}</span></header>
     <div class="deck-header"><button class="back" aria-label="Back to inbox">← Inbox</button></div>
     <article class="card" tabindex="0" aria-label="Decision card: ${escapeHtml(card.title)}" aria-describedby="swipe-help">
       <div class="item-row"><span class="eyebrow">${escapeHtml(card.source_profile)}</span><span class="badge">${escapeHtml(card.priority)}</span></div>

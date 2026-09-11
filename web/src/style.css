@@ -21,8 +21,8 @@ button { cursor: pointer; }
   margin: 0 auto;
 }
 
-.topline { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
-.topline h1 { margin: 0; font-size: 1.6rem; letter-spacing: -.03em; }
+.app-header { display: flex; justify-content: space-between; align-items: end; gap: 12px; padding: 4px 0 16px; margin-bottom: 14px; border-bottom: 1px solid rgba(104, 117, 128, .28); }
+.app-header h1 { margin: 0; font-size: 1.6rem; letter-spacing: -.03em; }
 .review-topline { margin-bottom: 8px; }
 .eyebrow { color: #65717c; font-size: .78rem; text-transform: uppercase; letter-spacing: .11em; }
 .tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 18px 0; }
