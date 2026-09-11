@@ -53,6 +53,10 @@ button { cursor: pointer; }
 .card p { line-height: 1.5; }
 .recommendation { margin: 18px 0; padding: 15px; border-radius: 16px; background: #edf4f8; }
 .recommendation strong { display: block; margin-bottom: 4px; }
+.decision-status { display: grid; gap: 4px; margin-top: 16px; padding: 13px 15px; border-radius: 14px; background: #e7eef5; }
+.decision-status strong { text-transform: capitalize; }
+.view-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.view-controls button:disabled { opacity: .45; cursor: default; }
 .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 16px; }
 .actions button, .primary, .secondary { border: 0; border-radius: 14px; padding: 13px 10px; font-weight: 750; }
 .decline { color: #b52828; background: #fee6e6; }
@@ -112,6 +116,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-radi
   .status-chip { color: #b9d6ea; background: #263846; }
   .apply-action { color: #10151a; background: #edf2f6; }
   .recommendation { background: #20303b; }
+  .decision-status { background: #263846; }
   .back, .app-footer { color: #8dc7ed; }
   dialog { color: #edf2f6; background: #192129; }
   .modal-eyebrow { color: #9cabba; }

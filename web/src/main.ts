@@ -8,6 +8,7 @@ let token = "";
 let current: Decision | null = null;
 let cardIndex = 0;
 let editMode = false;
+let viewMode = false;
 let pollTimer = 0;
 
 const terminalStatuses = new Set(["COMPLETED", "EXPIRED", "CANCELLED", "ARCHIVED"]);
@@ -79,16 +80,21 @@ async function loadInbox(_tab = "all", directToCards = false) {
       return `
       <article class="inbox-item">
         ${openButton}
-        ${(item.can_edit || item.can_apply) ? `<div class="item-actions">
+        <div class="item-actions">
+          <button class="item-action view-action" data-view-decision="${escapeHtml(item.decision_id)}">View</button>
           ${item.can_edit ? `<button class="item-action edit-action" data-edit-decision="${escapeHtml(item.decision_id)}">Edit</button>` : ""}
           ${item.can_apply ? `<button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">Apply</button>` : ""}
-        </div>` : ""}
+        </div>
       </article>`}).join("") : `<div class="empty">Nothing here.</div>`}</div>
   </section>`;
   app.querySelectorAll<HTMLButtonElement>("[data-decision]").forEach(button => button.onclick = () => openDecision(button.dataset.decision!));
   app.querySelectorAll<HTMLButtonElement>("[data-edit-decision]").forEach(button => button.onclick = event => {
     event.stopPropagation();
     openDecision(button.dataset.editDecision!, true);
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-view-decision]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    openDecision(button.dataset.viewDecision!, false, true);
   });
   app.querySelectorAll<HTMLButtonElement>("[data-apply-decision]").forEach(button => button.onclick = event => {
     event.stopPropagation();
@@ -97,10 +103,11 @@ async function loadInbox(_tab = "all", directToCards = false) {
   });
 }
 
-async function openDecision(id: string, editing = false) {
+async function openDecision(id: string, editing = false, viewing = false) {
   current = await api<Decision>(`/api/decisions/${id}`);
   cardIndex = 0;
-  editMode = editing;
+  viewMode = viewing;
+  editMode = editing && !viewing;
   renderDeck();
 }
 
@@ -111,14 +118,15 @@ function renderDeck() {
     loadInbox("all", false);
     return;
   }
-  const deck = editMode ? current.cards : pending;
+  const deck = editMode || viewMode ? current.cards : pending;
   if (!deck.length) {
     loadInbox("all", false);
     return;
   }
   const card = deck[Math.min(cardIndex, deck.length - 1)];
   const recommendation = card.options.find(option => option.is_recommended) || card.options[0];
-  const completed = editMode ? cardIndex : current.cards.length - pending.length;
+  const completed = editMode || viewMode ? cardIndex : current.cards.length - pending.length;
+  const decisionStatus = card.response ? String(card.response.outcome).replace(/_/g, " ") : "not decided";
   app.innerHTML = `<section class="shell">
     <header class="app-header review-topline" aria-label="Weekly Memory Wiki card review"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div><span class="progress">${completed + 1} of ${current.cards.length}</span></header>
     <div class="deck-header"><button class="back" aria-label="Back to inbox">← Inbox</button></div>
@@ -127,6 +135,7 @@ function renderDeck() {
       <h2>${escapeHtml(card.title)}</h2>
       <p>${escapeHtml(card.summary)}</p>
       <div class="recommendation"><span class="eyebrow">Hermes recommends</span><strong>${escapeHtml(recommendation.label)}</strong><span>${escapeHtml(recommendation.reason || recommendation.details)}</span></div>
+      ${viewMode ? `<div class="decision-status"><span class="eyebrow">Decision status</span><strong>${escapeHtml(decisionStatus)}</strong>${card.response?.note ? `<span>${escapeHtml(card.response.note)}</span>` : ""}</div><div class="view-controls"><button class="secondary view-prev" ${cardIndex === 0 ? "disabled" : ""}>Previous</button><button class="primary view-next" ${cardIndex >= deck.length - 1 ? "disabled" : ""}>Next</button></div>` : ""}
     </article>
     <footer id="swipe-help" class="app-footer swipe-help" role="contentinfo">Swipe right to accept · left to reject · up to abstain · down for alternatives</footer>
   </section>`;
@@ -134,7 +143,12 @@ function renderDeck() {
   app.querySelectorAll<HTMLButtonElement>("[data-outcome]").forEach(button => {
     button.onclick = () => saveResponse(card, button.dataset.outcome as Outcome);
   });
-  bindSwipe(app.querySelector<HTMLElement>(".card")!, card);
+  if (viewMode) {
+    app.querySelector<HTMLButtonElement>(".view-prev")!.onclick = () => { cardIndex -= 1; renderDeck(); };
+    app.querySelector<HTMLButtonElement>(".view-next")!.onclick = () => { cardIndex += 1; renderDeck(); };
+  } else {
+    bindSwipe(app.querySelector<HTMLElement>(".card")!, card);
+  }
 }
 
 function bindSwipe(element: HTMLElement, card: Card) {
