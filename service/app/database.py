@@ -346,12 +346,15 @@ class Database:
             if outcome == "recommended":
                 selected_option_id = card["recommendation_option_id"]
             elif outcome == "alternative":
-                exists = conn.execute(
-                    "SELECT 1 FROM decision_options WHERE card_id=? AND option_id=? AND is_recommended=0",
-                    (card_id, selected_option_id),
-                ).fetchone()
-                if not exists:
-                    raise ValueError("selected alternative is not valid for this card")
+                if selected_option_id:
+                    exists = conn.execute(
+                        "SELECT 1 FROM decision_options WHERE card_id=? AND option_id=? AND is_recommended=0",
+                        (card_id, selected_option_id),
+                    ).fetchone()
+                    if not exists:
+                        raise ValueError("selected alternative is not valid for this card")
+                elif not note.strip():
+                    raise ValueError("custom alternative requires text")
             else:
                 selected_option_id = None
             decided = iso()

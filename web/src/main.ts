@@ -199,14 +199,20 @@ function showDetails(card: Card, focusAlternatives = false) {
   dialog.innerHTML = `<div class="modal-eyebrow">Alternative answers</div><h3>${escapeHtml(card.title)}</h3><p>${escapeHtml(card.details)}</p>
     ${card.evidence.length ? `<h4>Evidence</h4><ul>${card.evidence.map(item => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</li>`).join("")}</ul>` : ""}
     ${card.execution ? `<h4>Recommended Wiki change</h4><pre>${escapeHtml(card.execution.proposed_content)}</pre>` : ""}
-    ${alternatives.length ? `<label for="alternative">Choose an alternative</label><select id="alternative"><option value="">Choose…</option>${alternatives.map(option => `<option value="${escapeHtml(option.option_id)}">${escapeHtml(option.label)}</option>`).join("")}</select><pre class="alternative-preview" hidden></pre>` : `<p class="modal-empty">No alternative answers were provided for this card.</p>`}
-    <div class="modal-actions"><button class="approve modal-accept">Accept</button>${alternatives.length ? `<button class="primary choose">Choose alternative</button>` : ""}<button class="secondary close">Close</button></div>`;
+    ${alternatives.length ? `<label for="alternative">Choose an alternative</label><select id="alternative"><option value="">Choose…</option>${alternatives.map(option => `<option value="${escapeHtml(option.option_id)}">${escapeHtml(option.label)}</option>`).join("")}</select><pre class="alternative-preview" hidden></pre>` : `<label for="custom-alternative">Write an alternative</label><textarea id="custom-alternative" class="custom-alternative" rows="3" placeholder="Type a different answer or instruction"></textarea>`}
+    <div class="modal-actions"><button class="approve modal-accept">Accept</button>${alternatives.length ? `<button class="primary choose">Choose alternative</button>` : `<button class="primary custom-choose">Use alternative</button>`}<button class="secondary close">Close</button></div>`;
   document.body.append(dialog);
   dialog.querySelector<HTMLButtonElement>(".close")!.onclick = () => dialog.close();
   dialog.querySelector<HTMLButtonElement>(".modal-accept")!.onclick = () => {
     dialog.close();
     saveResponse(card, "recommended");
   };
+  dialog.querySelector<HTMLButtonElement>(".custom-choose")?.addEventListener("click", () => {
+    const custom = dialog.querySelector<HTMLTextAreaElement>("#custom-alternative")!.value.trim();
+    if (!custom) return showToast("Write an alternative first");
+    dialog.close();
+    saveResponse(card, "alternative", null, custom);
+  });
   dialog.querySelector<HTMLButtonElement>(".choose")?.addEventListener("click", () => {
     const selected = dialog.querySelector<HTMLSelectElement>("#alternative")!.value;
     if (!selected) return showToast("Choose an alternative first");
