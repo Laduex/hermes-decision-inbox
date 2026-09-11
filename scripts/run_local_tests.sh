@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 python_bin="$repo_root/.venv/bin/python"
-hermes_worktree="${DECISION_INBOX_HERMES_WORKTREE:-/Users/vaughndazo/Documents/Codex/worktrees/hermes-decision-inbox}"
+hermes_worktree="${DECISION_INBOX_HERMES_WORKTREE:-/Users/vaughndazo/Documents/LDX/Apps/hermes-agent}"
 
 if [[ ! -x "$python_bin" ]]; then
   echo "Create .venv and install .[test] before running validation." >&2

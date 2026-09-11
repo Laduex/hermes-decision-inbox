@@ -20,7 +20,7 @@ The cron never edits the canonical Wiki. Telegram is notification-only and sends
 - `skills/`: weekly-review routing and Wiki-apply instructions registered by the plugin.
 - `tests/`: isolated schema, state, identity, plugin, UI-gesture, and Wiki executor tests.
 
-The matching Hermes source worktree is `/Users/vaughndazo/Documents/Codex/worktrees/hermes-decision-inbox` on branch `feat/telegram-decision-inbox`. It remains unchanged because this feature uses the public plugin interface.
+The matching Hermes source worktree is `/Users/vaughndazo/Documents/LDX/Apps/hermes-agent` on branch `feat/telegram-decision-inbox`. It remains unchanged because this feature uses the public plugin interface.
 
 ## Local development
 

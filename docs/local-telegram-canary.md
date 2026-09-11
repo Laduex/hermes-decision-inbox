@@ -5,7 +5,7 @@ Use an isolated Hermes home and disposable Wiki. Never provide a production bot 
 ## Prepare
 
 ```text
-cd /Users/vaughndazo/Documents/Codex/hermes-decision-inbox
+cd /Users/vaughndazo/Documents/LDX/Apps/hermes-decision-inbox
 python3 -m venv .venv
 .venv/bin/pip install -e '.[test]'
 ./scripts/setup_local_home.sh
