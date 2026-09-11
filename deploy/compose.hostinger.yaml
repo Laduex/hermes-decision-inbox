@@ -1,0 +1,41 @@
+services:
+  decision-inbox:
+    build:
+      context: ..
+      dockerfile: service/Dockerfile
+    image: hermes-decision-inbox:0.2.0-ui-actions
+    container_name: hermes-decision-inbox
+    restart: unless-stopped
+    env_file:
+      - /etc/laduex/env/hermes-decision-inbox.env
+    environment:
+      DECISION_INBOX_STATE_DIR: /opt/data/decision-inbox
+      DECISION_INBOX_DATABASE: /opt/data/decision-inbox/decision-inbox.sqlite3
+      DECISION_INBOX_MANIFEST_ROOT: /opt/data/decision-inbox/manifests
+      DECISION_INBOX_BACKUP_ROOT: /opt/data/decision-inbox/backups
+      DECISION_INBOX_WIKI_ROOT: /opt/data/home/wiki
+      DECISION_INBOX_HERMES_API_URL: http://hermes:8642
+    volumes:
+      - /srv/laduex/state/hermes-decision-inbox:/opt/data/decision-inbox
+      - /srv/laduex/state/hermes/home/wiki:/opt/data/home/wiki
+    ports:
+      - "127.0.0.1:8088:8080"
+    networks:
+      - default
+      - hermes_internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+networks:
+  hermes_internal:
+    external: true
+    name: hermes_default

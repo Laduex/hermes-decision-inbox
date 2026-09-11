@@ -1,0 +1,11 @@
+.env
+.local/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+dist/
+web/dist/
+web/node_modules/
+*.sqlite3*
+

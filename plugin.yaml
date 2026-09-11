@@ -1,0 +1,30 @@
+manifest_version: 2
+api_version: 1
+name: hermes-decision-inbox
+version: 0.2.0
+description: Private weekly Memory Wiki review publishing for Tailscale.
+author: Vaughn Dazo, Hermes Agent
+license: MIT
+kind: standalone
+platforms:
+  - linux
+  - macos
+provides_tools:
+  - publish_weekly_wiki_review
+python_dependencies:
+  - httpx>=0.27,<1
+config_schema:
+  service_url:
+    type: str
+    default: http://decision-inbox:8080
+    description: Internal URL of the Decision Inbox service.
+  default_expiry_days:
+    type: int
+    default: 14
+  auto_resume:
+    type: bool
+    default: false
+  wiki_executor_enabled:
+    type: bool
+    default: true
+tags: [tailscale, wiki, review, workflow]

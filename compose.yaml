@@ -1,0 +1,25 @@
+services:
+  decision-inbox:
+    build:
+      context: .
+      dockerfile: service/Dockerfile
+    image: hermes-decision-inbox:0.2.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DECISION_INBOX_STATE_DIR: /state
+      DECISION_INBOX_DATABASE: /state/decision-inbox.sqlite3
+      DECISION_INBOX_MANIFEST_ROOT: /state/manifests
+      DECISION_INBOX_BACKUP_ROOT: /state/backups
+      DECISION_INBOX_WIKI_ROOT: /wiki
+    volumes:
+      - ./.local/state:/state
+      - ./.local/fixtures/wiki:/wiki
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 4

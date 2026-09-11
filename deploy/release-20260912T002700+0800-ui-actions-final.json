@@ -1,0 +1,18 @@
+{
+  "application": "hermes-decision-inbox",
+  "change": "direct-card-review-ui-and-wiki-apply-actions",
+  "image": "hermes-decision-inbox:0.2.0-ui-actions",
+  "image_digest": "sha256:5ed976b2246e7f1c7dc1e45d594e75e0769960c9e5fa0a7e826206fa7e9dfdb9",
+  "compose_file": "/srv/laduex/apps/hermes-decision-inbox/deploy/compose.hostinger.yaml",
+  "service": "decision-inbox",
+  "bind": "127.0.0.1:8088",
+  "private_url": "https://hermes-prod.tail4766ea.ts.net:8451",
+  "backup": "/srv/laduex/backups/hermes-decision-inbox/20260912T002700+0800-ui-actions-final",
+  "verification": [
+    "43 backend tests passed, 5 frontend gesture tests passed",
+    "TypeScript build and plugin validation passed",
+    "container healthy and /healthz returned status ok",
+    "Tailscale Serve 8451 still proxies to 127.0.0.1:8088"
+  ],
+  "rollback": "restore backed-up source and compose files, then recreate only hermes-decision-inbox"
+}

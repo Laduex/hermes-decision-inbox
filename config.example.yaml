@@ -1,0 +1,14 @@
+plugins:
+  enabled:
+    - hermes-decision-inbox
+  entries:
+    hermes-decision-inbox:
+      enabled: true
+      settings:
+        service_url: http://decision-inbox:8080
+        default_expiry_days: 14
+        auto_resume: false
+        wiki_executor_enabled: true
+
+platform_toolsets:
+  cron: [hermes-cron, decision_inbox]

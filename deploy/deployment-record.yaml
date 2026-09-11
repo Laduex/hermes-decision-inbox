@@ -1,0 +1,41 @@
+slug: hermes-decision-inbox
+repository: local validated standalone package
+deployed_at: 2026-09-12T00:00:31+08:00
+source_archive_sha256: ad1381d57d4875dea763aad4d6ad3b21a7085f22e48e3f90a34d7ecfa5fa40d5
+wheel_sha256: dc07cfe91c1221b1d4cfad27577b738a802123c3b71c38d7045766d87df93a5e
+service_image: hermes-decision-inbox:0.2.0-ui-no-gesture-legend
+service_image_id: sha256:64fcac2ddf39437a4ccacc95e9e9cec275abae76a9d7089d006c09ce1449bd6f
+hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.2.0-ad1381d57d48
+hermes_image_id: sha256:d16a3da828fddbc7668b10f67e107d1d8c782324b8daef66db6f30e462e56f1b
+compose_file: /srv/laduex/apps/hermes-decision-inbox/deploy/compose.hostinger.yaml
+compose_project: hermes-decision-inbox
+app_services: [decision-inbox]
+tunnel_service: tailscale-serve
+localhost_ports: [127.0.0.1:8088]
+private_hostname: https://hermes-prod.tail4766ea.ts.net:8451
+health_check: http://127.0.0.1:8088/healthz
+private_health_check: https://hermes-prod.tail4766ea.ts.net:8451/healthz
+state_mounts:
+  - /srv/laduex/state/hermes-decision-inbox
+  - /srv/laduex/state/hermes/home/wiki:read-write-with-preflight-and-backup
+backup_command_or_policy: mode-600 predeployment archive plus SQLite-consistent app backups
+backup_path: /srv/laduex/backups/hermes-decision-inbox/20260911T235000+0800-tailscale-weekly
+migration_command: automatic idempotent SQLite schema initialization on service start
+rollback_ref:
+  hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-024c92468407
+  app_source: /srv/laduex/apps/hermes-decision-inbox-0.1.0-rollback-20260911
+  backup: /srv/laduex/backups/hermes-decision-inbox/20260911T235000+0800-tailscale-weekly
+activation_state: weekly-wiki-only-enabled
+verification:
+  automated_tests: 43 passed, 2 skipped
+  gesture_tests: 5 passed
+  package_validation: passed
+  plugin_discovery: enabled
+  private_tailscale_health: 200
+  public_cloudflare_health: 530
+  telegram_send: reachable
+  hermes_profiles: 8 of 8 reachable
+  cron_schedule: Sunday 21:00 Asia/Manila
+  canary_decision: rejected by owner; no Wiki change
+  ui_update: Review tab opens the first card deck directly
+  ui_update_2: Removed the gesture legend strip from cards

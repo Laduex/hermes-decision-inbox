@@ -1,0 +1,15 @@
+# Weekly Memory Wiki Review integration
+
+Keep job `3bdf2dbbc400` scheduled for Sunday at 21:00 Asia/Manila and owned by Yuna/default. Replace its task instructions only during the production rollout, after the Decision Inbox canary passes.
+
+## Replacement task instructions
+
+1. Review the previous seven days in read-only mode.
+2. Write the existing human-readable Markdown report.
+3. Create one `publish_weekly_wiki_review` batch containing every proposed Wiki change.
+4. For each executable card, include `execution_kind: wiki_patch_v1`, an exact path relative to `/opt/data/home/wiki`, one supported operation, the current target SHA-256, section anchor when required, and exact proposed Markdown.
+5. Publish one batch. The review must not modify the Wiki, Hindsight, profiles, skills, repositories, or any external system.
+6. Return `[SILENT]` only after `publish_weekly_wiki_review` confirms `PUBLISHED`.
+7. If publication fails, deliver the Markdown report through the existing Telegram fallback and report the publishing blocker truthfully.
+
+Store staging artifacts beneath `/opt/data/decision-inbox/reviews/<review-id>/`, outside the canonical Wiki.
