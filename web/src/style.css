@@ -12,6 +12,8 @@ button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 
 .shell {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
     max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
@@ -55,9 +57,7 @@ button { cursor: pointer; }
 .alternatives { color: #31506a; background: #e7eef5; }
 .approve, .primary { color: white; background: #182029; }
 .secondary { color: #315f82; background: #e7eaee; }
-.details-link { width: 100%; margin-top: auto; border: 0; background: transparent; color: #315f82; padding: 22px 0 0; }
-.app-footer { padding: 10px 4px 0; }
-.swipe-help { margin: 0; color: #687580; font-size: .78rem; line-height: 1.4; text-align: center; }
+.app-footer { margin-top: auto; padding: 22px 4px max(10px, env(safe-area-inset-bottom)); color: #687580; font-size: .78rem; line-height: 1.4; text-align: center; }
 
 .summary { display: grid; gap: 12px; }
 .summary-row { background: white; border-radius: 15px; padding: 13px; }
@@ -95,7 +95,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-radi
   .badge, .alternatives, .item-action { color: #b9d6ea; background: #263846; }
   .apply-action { color: #10151a; background: #edf2f6; }
   .recommendation { background: #20303b; }
-  .back, .details-link, .swipe-help { color: #8dc7ed; }
+  .back, .app-footer { color: #8dc7ed; }
   dialog { color: #edf2f6; background: #192129; }
   dialog textarea, dialog select { color: #edf2f6; background: #10151a; border-color: #60707e; }
   pre { background: #10151a; }

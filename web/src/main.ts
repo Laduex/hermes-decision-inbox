@@ -105,15 +105,13 @@ function renderDeck() {
       <h2>${escapeHtml(card.title)}</h2>
       <p>${escapeHtml(card.summary)}</p>
       <div class="recommendation"><span class="eyebrow">Hermes recommends</span><strong>${escapeHtml(recommendation.label)}</strong><span>${escapeHtml(recommendation.reason || recommendation.details)}</span></div>
-      <button class="details-link">Details</button>
     </article>
-    <footer class="app-footer"><p id="swipe-help" class="swipe-help">Swipe right to accept · left to reject · up to abstain · down for alternatives</p></footer>
+    <footer id="swipe-help" class="app-footer swipe-help" role="contentinfo">Swipe right to accept · left to reject · up to abstain · down for alternatives</footer>
   </section>`;
   app.querySelector<HTMLButtonElement>(".back")!.onclick = () => loadInbox("new", false);
   app.querySelectorAll<HTMLButtonElement>("[data-outcome]").forEach(button => {
     button.onclick = () => saveResponse(card, button.dataset.outcome as Outcome);
   });
-  app.querySelector<HTMLButtonElement>(".details-link")!.onclick = () => showDetails(card);
   bindSwipe(app.querySelector<HTMLElement>(".card")!, card);
 }
 
