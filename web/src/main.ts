@@ -79,12 +79,17 @@ async function loadInbox(_tab = "all", directToCards = false) {
       return `
       <article class="inbox-item">
         ${openButton}
-        ${item.can_apply ? `<div class="item-actions">
-          <button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">Apply</button>
+        ${(item.can_edit || item.can_apply) ? `<div class="item-actions">
+          ${item.can_edit ? `<button class="item-action edit-action" data-edit-decision="${escapeHtml(item.decision_id)}">Edit</button>` : ""}
+          ${item.can_apply ? `<button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">Apply</button>` : ""}
         </div>` : ""}
       </article>`}).join("") : `<div class="empty">Nothing here.</div>`}</div>
   </section>`;
   app.querySelectorAll<HTMLButtonElement>("[data-decision]").forEach(button => button.onclick = () => openDecision(button.dataset.decision!));
+  app.querySelectorAll<HTMLButtonElement>("[data-edit-decision]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    openDecision(button.dataset.editDecision!, true);
+  });
   app.querySelectorAll<HTMLButtonElement>("[data-apply-decision]").forEach(button => button.onclick = event => {
     event.stopPropagation();
     const item = data.items.find(candidate => candidate.decision_id === button.dataset.applyDecision);
