@@ -8,7 +8,7 @@ service_image_id: sha256:4df7929115d89fe1b92c7450beddd7f2d504e6f980d26af82ed740a
 hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.2.0-ad1381d57d48
 hermes_image_id: sha256:d16a3da828fddbc7668b10f67e107d1d8c782324b8daef66db6f30e462e56f1b
 compose_file: /srv/laduex/apps/hermes-decision-inbox/deploy/compose.hostinger.yaml
-compose_project: hermes-decision-inbox
+compose_project: deploy
 app_services: [decision-inbox]
 tunnel_service: tailscale-serve
 localhost_ports: [127.0.0.1:8088]
@@ -16,16 +16,21 @@ private_hostname: https://hermes-prod.tail4766ea.ts.net:8451
 health_check: http://127.0.0.1:8088/healthz
 private_health_check: https://hermes-prod.tail4766ea.ts.net:8451/healthz
 state_mounts:
-  - /srv/laduex/state/hermes-decision-inbox
+  - /srv/laduex/state/hermes-decision-inbox:service-uid-10001-and-cron-uid-1000-via-default-acl
   - /srv/laduex/state/hermes/home/wiki:read-write-with-preflight-and-backup
 backup_command_or_policy: mode-600 predeployment archive plus SQLite-consistent app backups
 backup_path: /srv/laduex/backups/hermes-decision-inbox/20260912T011500+0800-ui-final
+operational_backup_path: /srv/laduex/backups/hermes-decision-inbox/20260911T231828+0000-cron-routing-fix
 migration_command: automatic idempotent SQLite schema initialization on service start
 rollback_ref:
   hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-024c92468407
   app_source: /srv/laduex/backups/hermes-decision-inbox/20260912T011500+0800-ui-final/app-source.tar.gz
   backup: /srv/laduex/backups/hermes-decision-inbox/20260912T011500+0800-ui-final
 activation_state: weekly-wiki-only-enabled
+cron_job:
+  id: 3bdf2dbbc400
+  name: Weekly Memory Wiki Review
+  routing_skill: hermes-decision-inbox:decision-inbox-routing
 verification:
   automated_tests: 43 passed, 2 skipped
   gesture_tests: 5 passed
@@ -36,6 +41,9 @@ verification:
   telegram_send: reachable
   hermes_profiles: 8 of 8 reachable
   cron_schedule: Sunday 21:00 Asia/Manila
+  cron_routing_skill_load: passed
+  cron_decision_inbox_toolset: enabled
+  cron_uid_1000_staging_write: passed
   canary_decision: rejected by owner; no Wiki change
   ui_update: Unified inbox shows Review, Completed, and Archived statuses
   ui_update_2: View opens a read-only decision status deck; Edit remains available before apply

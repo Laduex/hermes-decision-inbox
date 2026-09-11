@@ -25,7 +25,9 @@ The service binds to `127.0.0.1:8088`. Tailscale Serve publishes private HTTPS o
 
 Install the pinned wheel into the derived Hermes image without editing `/opt/hermes` source. Enable `hermes-decision-inbox` only for Yuna/default and expose `decision_inbox` only to the cron surface. Other profiles and delegated agents cannot publish cards.
 
-The weekly cron calls `publish_weekly_wiki_review` with one batch. Every card must include an exact relative Wiki path, current base SHA-256, supported operation, and proposed content. The tool returns `PUBLISHED`; the cron then returns `[SILENT]`. Publication failure uses the existing Markdown report delivery.
+The weekly cron must attach the qualified plugin skill `hermes-decision-inbox:decision-inbox-routing`; the bare `decision-inbox-routing` name is not resolvable by the cron skill loader. It calls `publish_weekly_wiki_review` with one batch. Every card must include an exact relative Wiki path, current base SHA-256, supported operation, and proposed content. The tool returns `PUBLISHED`; the cron then returns `[SILENT]`. Publication failure uses the existing Markdown report delivery.
+
+The shared Decision Inbox state remains owned by service UID `10001`. Hermes cron UID `1000` receives recursive access plus a default ACL on `/srv/laduex/state/hermes-decision-inbox`, allowing current and newly created review staging paths without making the directory world-writable.
 
 ## Canary sequence
 
