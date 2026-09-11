@@ -66,7 +66,11 @@ button { cursor: pointer; }
 .primary:disabled { opacity: .55; cursor: wait; }
 
 dialog { width: min(calc(100vw - 24px), 648px); max-height: 82vh; overflow: auto; border: 0; border-radius: 24px; padding: 22px; color: #182029; background: #e8f2f8; box-shadow: 0 24px 80px rgba(13, 19, 24, .3); }
-dialog.detail-modal::backdrop { background: rgba(18, 76, 108, .76); }
+dialog.detail-modal::backdrop {
+  background: rgba(8, 12, 16, .62);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
 dialog h3 { margin: 5px 0 12px; font-size: 1.45rem; letter-spacing: -.025em; }
 dialog h4 { margin: 18px 0 8px; }
 dialog label { display: block; margin: 15px 0 6px; font-weight: 700; }
