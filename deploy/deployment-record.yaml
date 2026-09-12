@@ -1,14 +1,14 @@
 slug: hermes-decision-inbox
-repository: local validated standalone package
-deployed_at: 2026-09-12T13:35:10+08:00
-branch_or_image_ref: v1.5@bdd5f67
-plugin_source_revision: bdd5f67cbe8f750b43630f662cb7c5bda4cafba9
-source_archive_sha256: 3567f0c3d5ac665d204e27d11d6b5bfe7ce48e7a20fd734b95afad312225f91b
-wheel_sha256: 4c8541b5108e9cd95dda07559fed7094731cf5fa641f63735ff3291510d18a8f
-service_image: hermes-decision-inbox:v1.5-bdd5f67
-service_image_id: sha256:4ae2979c1ec1a2a149dcf4bc165ce27202f243c3203ba0aa729129876625e3e3
-hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.2.1-27ba2ae
-hermes_image_id: sha256:3a70a3a16db00b71c2b960be209f3048e078efd3d815cb5f6c45697e0917f74e
+repository: https://github.com/Laduex/hermes-decision-inbox
+deployed_at: 2026-09-12T20:38:51+08:00
+branch_or_image_ref: v1.5@025ad88
+plugin_source_revision: 025ad88a347d1950fd33af01ad67ee3065d1d904
+source_archive_sha256: abf4818e3b4768a416440e8101f2ed27af9050417901850ab3cfa5151d79f345
+wheel_sha256: ec3dcb063edd646aeed23ca70fe322cd9b23c9450fb6fdb9bec8cd9615dd8c7d
+service_image: hermes-decision-inbox:v0.3.0-session-aware
+service_image_id: sha256:b56ff3e3724417c0980efc224efa4d9b27b1652cced69c0422e4012cabfc1f75
+hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.3.4-025ad88
+hermes_image_id: sha256:b360cfc5022c0d5713a7ed97c5699514d96f14346b13010b6d4d8b9803b8c582
 compose_file: /srv/laduex/apps/hermes-decision-inbox/deploy/compose.hostinger.yaml
 compose_project: deploy
 app_services: [decision-inbox]
@@ -20,39 +20,44 @@ private_health_check: https://hermes-prod.tail4766ea.ts.net:8451/healthz
 state_mounts:
   - /srv/laduex/state/hermes-decision-inbox:service-uid-10001-and-cron-uid-1000-via-default-acl
   - /srv/laduex/state/hermes/home/wiki:read-write-with-preflight-and-backup
-backup_command_or_policy: mode-600 predeployment archive plus SQLite-consistent app backups
-backup_path: /srv/laduex/backups/hermes-decision-inbox/predeploy-20260912T053223Z-frontend
-operational_backup_path: /srv/laduex/backups/hermes-decision-inbox/20260912T010312+0000-plugin-0.2.1
-migration_command: automatic idempotent SQLite schema initialization on service start
+backup_command_or_policy: mode-600 predeployment archives plus SQLite-consistent app backups
+backup_paths:
+  - /srv/laduex/backups/hermes-decision-inbox/predeploy-session-aware-20260912T092754Z
+  - /srv/laduex/backups/hermes-decision-inbox/predeploy-receiver-20260912T095941Z
+  - /srv/laduex/backups/hermes-decision-inbox/predeploy-all-agents-20260912T100540Z
+migration_command: automatic idempotent SQLite migrations through 003_session_delivery.sql
 rollback_ref:
-  hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.2.0-ad1381d57d48
-  app_source: /srv/laduex/backups/hermes-decision-inbox/20260912T010312+0000-plugin-0.2.1/app-source.tar.gz
-  backup: /srv/laduex/backups/hermes-decision-inbox/20260912T010312+0000-plugin-0.2.1
-activation_state: live-v1.5
+  hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.3.3-09b380c
+  app_source: /srv/laduex/apps/hermes-decision-inbox-pre-8ab99aa
+  backup: /srv/laduex/backups/hermes-decision-inbox/predeploy-session-aware-20260912T092754Z
+activation_state: live-session-aware-all-primary-profiles
+enabled_profiles: [default, canvas, forge, iris, koda, penny, sentinel, whisper]
+role_boundary: primary profiles may publish; delegated agents must return decisions to their parent
 cron_job:
   id: 3bdf2dbbc400
   name: Weekly Memory Wiki Review
+  schedule: Sunday 21:00 Asia/Manila
+  delivery: origin
   routing_skill: hermes-decision-inbox:decision-inbox-routing
+  read_skill: hermes-decision-inbox:decision-inbox-read-decisions
 verification:
-  automated_tests: 61 passed, 3 skipped
-  frontend_tests: 5 passed
-  gesture_tests: 5 passed
+  automated_tests: 76 passed, 4 skipped
+  frontend_tests: 7 passed
+  skill_contract_tests: 10 passed
+  real_hermes_integration_tests: 21 passed
   package_validation: passed
-  plugin_discovery: enabled
+  plugin_version: 0.3.4
+  plugin_discovery: enabled on 8 of 8 primary profiles
+  decision_inbox_toolset: enabled on 8 of 8 primary profiles
+  session_delivery: enabled on 8 of 8 primary profiles
+  profile_publish_tokens: present and profile-scoped on 8 of 8 primary profiles
+  gateway_injection: enabled only for hermes-decision-inbox on 8 of 8 primary profiles
+  gateway_multiplexer: running with 11 platform adapters
   private_tailscale_health: 200
   decision_inbox_health: database=ok,telegram=configured,hermes_api=configured
-  public_cloudflare_health: 530
-  telegram_send: reachable
-  hermes_profiles: 8 of 8 reachable
-  cron_schedule: Sunday 21:00 Asia/Manila
-  cron_routing_skill_load: passed
-  cron_decision_inbox_toolset: enabled
-  cron_uid_1000_staging_write: passed
-  cron_session_search_guardrail: 5 sequential unique calls; 1 empty query broadened once; no loop halt
-  cron_review_staging: report.md and review.json created for 20260906-20260912-run-20260912T084832+0800
-  cron_dashboard_publish: dec_0c97a08e5406afdb839c990d with 6 cards; notification sent
-  cron_saved_output: /opt/data/cron/output/3bdf2dbbc400/2026-09-12_08-57-16.md
-  plugin_batch_schema: top-level name and batch only
-  canary_decision: rejected by owner; no Wiki change
-  ui_update: Unified inbox shows Review, Completed, and Archived statuses
-  ui_update_2: View opens a read-only decision status deck; Edit remains available before apply
+  apply_canary_decision: dec_056a407f91691c46e2d74894
+  apply_canary_execution: exec_616979a8bbd946635687118f completed in exact Iris session
+  reset_canary_decision: dec_d7b510831bb1aa0e63b63298
+  reset_canary_execution: exec_0e5d3117f0851e5ccbc6ff2a queued with zero delivery attempts
+  reset_canary_isolation: no matching Iris session message or inbound log entry
+  weekly_cron_contract: unchanged and healthy

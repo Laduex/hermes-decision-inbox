@@ -1,0 +1,23 @@
+{
+  "slug": "hermes-decision-inbox",
+  "deployed_at": "2026-09-12T20:38:51+08:00",
+  "revision": "025ad88a347d1950fd33af01ad67ee3065d1d904",
+  "plugin_version": "0.3.4",
+  "wheel_sha256": "ec3dcb063edd646aeed23ca70fe322cd9b23c9450fb6fdb9bec8cd9615dd8c7d",
+  "service_image": "hermes-decision-inbox:v0.3.0-session-aware",
+  "service_image_id": "sha256:b56ff3e3724417c0980efc224efa4d9b27b1652cced69c0422e4012cabfc1f75",
+  "hermes_image": "hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.3.4-025ad88",
+  "hermes_image_id": "sha256:b360cfc5022c0d5713a7ed97c5699514d96f14346b13010b6d4d8b9803b8c582",
+  "enabled_profiles": ["default", "canvas", "forge", "iris", "koda", "penny", "sentinel", "whisper"],
+  "validation": {
+    "python": "76 passed, 4 skipped",
+    "frontend": "7 passed",
+    "skills": "10 passed",
+    "real_hermes": "21 passed",
+    "apply_canary": "exact-session completion confirmed",
+    "reset_canary": "queued with zero delivery attempts; no replacement-session delivery",
+    "private_health": "200",
+    "gateway": "default-profile multiplexer running with 11 adapters",
+    "weekly_cron": "unchanged and healthy"
+  }
+}
