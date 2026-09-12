@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -46,6 +47,53 @@ def test_plugin_managers_share_one_profile_aware_receiver(monkeypatch):
         assert sorted(first._publish_tokens) == ["iris"]
     finally:
         plugin_module._release_continuation_receiver(first)
+
+
+def test_receiver_starts_background_loop_during_gateway_discovery(monkeypatch):
+    started = threading.Event()
+    ctx = SimpleNamespace(
+        profile_name="default",
+        get_config=lambda key, default=None: default,
+    )
+    receiver = ContinuationReceiver(ctx)
+
+    async def run_once():
+        started.set()
+
+    monkeypatch.setenv("_HERMES_GATEWAY", "1")
+    monkeypatch.setattr(receiver, "capture_configured_profiles", lambda: None)
+    monkeypatch.setattr(receiver, "run", run_once)
+    receiver.ensure_started()
+    try:
+        assert started.wait(timeout=1.0)
+        assert receiver._thread is not None
+    finally:
+        receiver.stop()
+
+
+def test_receiver_does_not_start_background_loop_outside_gateway(monkeypatch):
+    ctx = SimpleNamespace(
+        profile_name="default",
+        get_config=lambda key, default=None: default,
+    )
+    receiver = ContinuationReceiver(ctx)
+    monkeypatch.delenv("_HERMES_GATEWAY", raising=False)
+    monkeypatch.setattr(receiver, "capture_configured_profiles", lambda: None)
+    receiver.ensure_started()
+    assert receiver._thread is None
+
+
+def test_receiver_waits_for_gateway_injector():
+    manager = SimpleNamespace(has_gateway_message_injector=False)
+    ctx = SimpleNamespace(
+        profile_name="default",
+        _manager=manager,
+        get_config=lambda key, default=None: default,
+    )
+    receiver = ContinuationReceiver(ctx)
+    assert receiver._gateway_ready() is False
+    manager.has_gateway_message_injector = True
+    assert receiver._gateway_ready() is True
 
 
 def test_route_verification_accepts_compression_tip_but_rejects_reset(monkeypatch):

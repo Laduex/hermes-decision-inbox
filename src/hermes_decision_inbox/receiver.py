@@ -64,6 +64,8 @@ class ContinuationReceiver:
         self.profile = getattr(ctx, "profile_name", None) or "default"
         self.poll_seconds = self._poll_seconds()
         self._task: asyncio.Task | None = None
+        self._thread: threading.Thread | None = None
+        self._start_lock = threading.Lock()
         self._stopping = False
         self._active_cli_sessions: dict[str, set[str]] = {}
         self._inflight: dict[str, InflightContinuation] = {}
@@ -174,20 +176,49 @@ class ContinuationReceiver:
 
     def ensure_started(self) -> None:
         self.capture_configured_profiles()
-        if self._stopping or (self._task and not self._task.done()):
-            return
+        with self._start_lock:
+            if self._stopping:
+                return
+            if self._task and not self._task.done():
+                return
+            if self._thread and self._thread.is_alive():
+                return
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                if os.environ.get("_HERMES_GATEWAY") != "1":
+                    return
+                self._thread = threading.Thread(
+                    target=self._run_in_thread,
+                    name=f"hermes-decision-inbox:{self.profile}:continuations",
+                    daemon=True,
+                )
+                self._thread.start()
+                return
+            self._task = self.ctx.spawn_task(
+                self.run(), name=f"hermes-decision-inbox:{self.profile}:continuations",
+            )
+
+    def _run_in_thread(self) -> None:
         try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        self._task = self.ctx.spawn_task(
-            self.run(), name=f"hermes-decision-inbox:{self.profile}:continuations",
-        )
+            asyncio.run(self.run())
+        except Exception:
+            if not self._stopping:
+                logger.exception("Decision Inbox continuation receiver stopped unexpectedly")
+
+    def _gateway_ready(self) -> bool:
+        manager = getattr(self.ctx, "_manager", None)
+        if manager is None:
+            return True
+        return bool(getattr(manager, "has_gateway_message_injector", False))
 
     def stop(self) -> None:
         self._stopping = True
         if self._task and not self._task.done():
             self._task.cancel()
+        thread = self._thread
+        if thread and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=self.poll_seconds + 1.0)
 
     def session_started(self, session_id: str = "", **_: Any) -> None:
         profile = getattr(self.ctx, "profile_name", None) or self.profile
@@ -202,6 +233,9 @@ class ContinuationReceiver:
 
     async def run(self) -> None:
         while not self._stopping:
+            if not self._gateway_ready():
+                await asyncio.sleep(self.poll_seconds)
+                continue
             with self._token_lock:
                 profiles = sorted(self._publish_tokens)
             for profile in profiles:
