@@ -7,7 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from hermes_decision_inbox.receiver import ContinuationReceiver, PublicationGuard
+from hermes_decision_inbox.receiver import (
+    ContinuationReceiver,
+    InflightContinuation,
+    PublicationGuard,
+)
 
 
 def test_publication_guard_replaces_interactive_silent_with_direct_link():
@@ -251,6 +255,39 @@ async def test_receiver_injects_complete_envelope_and_acknowledges_once(monkeypa
     await asyncio.gather(*ctx.tasks)
     assert len(client.completed) == 1
     assert client.completed[0][2]["assistant_response"] == "Deployment completed."
+
+
+def test_receiver_acknowledges_from_worker_thread_without_event_loop(monkeypatch):
+    completed = threading.Event()
+
+    class Client:
+        def complete_continuation(self, execution_id, lease_token, result):
+            assert execution_id == "exec_thread"
+            assert lease_token == "lease-token-that-is-long-enough"
+            assert result["assistant_response"] == "Applied."
+            completed.set()
+
+    ctx = SimpleNamespace(
+        profile_name="iris",
+        get_config=lambda key, default=None: default,
+    )
+    receiver = ContinuationReceiver(ctx)
+    receiver._inflight["exec_thread"] = InflightContinuation(
+        execution_id="exec_thread",
+        lease_token="lease-token-that-is-long-enough",
+        target_session_id="session-1",
+        source_profile="iris",
+    )
+    monkeypatch.setattr(receiver, "_client", lambda profile=None: Client())
+    monkeypatch.setattr(receiver, "ensure_started", lambda: None)
+
+    receiver.post_llm_call(
+        session_id="session-1",
+        user_message="Decision-Inbox-Continuation: exec_thread\nAuthenticated continuation",
+        assistant_response="Applied.",
+    )
+    assert completed.wait(timeout=1.0)
+    assert "exec_thread" not in receiver._inflight
 
 
 @pytest.mark.asyncio

@@ -432,10 +432,9 @@ class ContinuationReceiver:
         ):
             return
 
-        async def acknowledge() -> None:
+        def complete() -> None:
             try:
-                await asyncio.to_thread(
-                    self._client(inflight.source_profile).complete_continuation,
+                self._client(inflight.source_profile).complete_continuation(
                     execution_id,
                     inflight.lease_token,
                     {"assistant_response": assistant_response, "source_session_id": session_id},
@@ -445,10 +444,17 @@ class ContinuationReceiver:
             else:
                 self._inflight.pop(execution_id, None)
 
+        async def acknowledge() -> None:
+            await asyncio.to_thread(complete)
+
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            logger.warning("No event loop was available to acknowledge continuation %s", execution_id)
+            threading.Thread(
+                target=complete,
+                name=f"decision-continuation-complete:{execution_id}",
+                daemon=True,
+            ).start()
             return
         self.ctx.spawn_task(acknowledge(), name=f"decision-continuation-complete:{execution_id}")
 
