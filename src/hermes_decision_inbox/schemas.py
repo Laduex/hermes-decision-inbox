@@ -101,11 +101,36 @@ class DecisionRequest(BaseModel):
         )]
 
 
+class WeeklyWikiReviewRequest(BaseModel):
+    """Agent-facing shape for the weekly-only publisher.
+
+    The service accepts both single and batch decisions, but this plugin tool is
+    intentionally batch-only. Keeping single-card fields out of its schema prevents
+    models from mixing the two request modes.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(default="weekly-memory-wiki-review", min_length=1, max_length=100)
+    batch: list[DecisionCard] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def executable_batch(self) -> "WeeklyWikiReviewRequest":
+        if any(card.execution is None for card in self.batch):
+            raise ValueError("weekly review publication requires wiki_patch_v1 execution on every card")
+        return self
+
+    def cards(self) -> list[DecisionCard]:
+        return self.batch
+
+
 REQUEST_DECISION_SCHEMA: dict[str, Any] = {
     "name": "publish_weekly_wiki_review",
     "description": (
         "Publish the Sunday Memory Wiki review as a batch of exact, reviewable Wiki changes. "
-        "Every card must include wiki_patch_v1 execution data; this tool is not for ordinary decisions."
+        "Every card must include wiki_patch_v1 execution data. Top-level arguments are only "
+        "name and batch; put title, summary, details, evidence, priority, and choices inside each "
+        "batch card. This tool is not for ordinary decisions."
     ),
-    "parameters": DecisionRequest.model_json_schema(),
+    "parameters": WeeklyWikiReviewRequest.model_json_schema(),
 }

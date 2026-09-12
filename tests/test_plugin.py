@@ -33,6 +33,7 @@ def test_real_hermes_discovers_external_plugin(tmp_path, monkeypatch):
     entry = registry.get_entry("publish_weekly_wiki_review", scope=str(home.resolve()))
     assert entry is not None
     assert entry.toolset == "decision_inbox"
+    assert set(entry.schema["parameters"]["properties"]) == {"name", "batch"}
     assert manager.find_plugin_skill("hermes-decision-inbox:decision-inbox-routing") is not None
 
 

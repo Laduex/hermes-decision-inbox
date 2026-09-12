@@ -8,7 +8,7 @@ from typing import Any
 
 from . import __version__
 from .client import DecisionInboxClient, DecisionInboxError
-from .schemas import DecisionRequest, REQUEST_DECISION_SCHEMA
+from .schemas import REQUEST_DECISION_SCHEMA, WeeklyWikiReviewRequest
 
 
 def _tool_result(payload: dict[str, Any]) -> str:
@@ -61,7 +61,7 @@ def build_handler(ctx):
 
     def handle(args: dict[str, Any], **kwargs: Any) -> str:
         try:
-            request = DecisionRequest.model_validate(args)
+            request = WeeklyWikiReviewRequest.model_validate(args)
         except Exception as exc:
             return _tool_result({"status": "ERROR", "error": f"Invalid decision request: {exc}"})
 
@@ -78,11 +78,6 @@ def build_handler(ctx):
                 "error": "Only Yuna/default may publish the weekly Memory Wiki review.",
             })
         cards = request.cards()
-        if not request.batch or any(card.execution is None for card in cards):
-            return _tool_result({
-                "status": "ERROR",
-                "error": "Weekly review publication requires one executable batch of Wiki cards.",
-            })
         try:
             wiki_enabled = _config_bool(ctx.get_config("wiki_executor_enabled", default=True), True)
         except ValueError as exc:

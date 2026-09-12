@@ -12,7 +12,7 @@ from .tool import build_handler, check_available
 
 _PROMPT = """## Weekly Memory Wiki Review Dashboard
 Use `publish_weekly_wiki_review` only from the scheduled Yuna/default weekly Memory Wiki review.
-Publish exactly one batch after the read-only review and Markdown fallback report are complete. Every card must contain an exact `wiki_patch_v1` operation and may include executable alternative wording.
+Publish exactly one batch after the read-only review and Markdown fallback report are complete. The tool's top-level arguments are only `name` and `batch`; put card metadata and choices inside each batch item. Every card must contain an exact `wiki_patch_v1` operation and may include executable alternative wording.
 After the tool returns `PUBLISHED`, return `[SILENT]`. The dashboard, not the cron session, owns review and application.
 """
 
