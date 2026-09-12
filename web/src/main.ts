@@ -142,12 +142,6 @@ async function loadInbox(tab: InboxTab = "all", directToCards = false) {
         ${openButton}
         ${actionButtons ? `<div class="item-actions">${actionButtons}</div>` : ""}
       </article>`}).join("") : `<div class="empty-state" role="status">
-        <div class="empty-orb" aria-hidden="true">✦</div>
-        <div class="empty-copy">
-          <div class="eyebrow">${tab === "archive" ? "Archive is quiet" : "All clear"}</div>
-          <h2>${tab === "archive" ? "Nothing archived yet" : "Your inbox is clear"}</h2>
-          <p>${tab === "archive" ? "Applied and archived decisions will stay here for easy reference." : "No decisions need your attention right now. New requests will appear here."}</p>
-        </div>
         <div class="empty-hint"><span aria-hidden="true">⌁</span>${tab === "archive" ? "A calm record of what’s done" : "You’re up to date"}</div>
       </div>`}</div>
   </section>`;

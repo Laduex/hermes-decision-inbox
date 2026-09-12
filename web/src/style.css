@@ -139,15 +139,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-radi
 .detail-modal .modal-actions .secondary { color: var(--brand-soft-text); background: var(--surface-muted); }
 .modal-empty { padding: 12px 14px; border-radius: 12px; color: var(--text-muted); background: var(--surface-elevated); }
 
-.empty-state { position: relative; display: grid; justify-items: center; gap: 16px; min-height: 270px; padding: 46px 24px 40px; overflow: hidden; border: 1px solid var(--border); border-radius: 24px; text-align: center; background: linear-gradient(145deg, var(--surface), var(--surface-elevated)); box-shadow: 0 16px 40px var(--shadow); }
-.empty-state::before, .empty-state::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; }
-.empty-state::before { width: 220px; height: 220px; top: -130px; right: -82px; background: var(--brand-soft); opacity: .7; }
-.empty-state::after { width: 150px; height: 150px; bottom: -108px; left: -58px; border: 1px solid var(--border); opacity: .7; }
-.empty-orb { position: relative; display: grid; place-items: center; width: 54px; height: 54px; border: 1px solid color-mix(in srgb, var(--brand) 55%, var(--border)); border-radius: 18px; color: var(--brand-contrast); background: linear-gradient(145deg, var(--brand), var(--brand-strong)); box-shadow: 0 10px 24px color-mix(in srgb, var(--brand) 22%, transparent); font-size: 1.35rem; }
-.empty-copy { position: relative; display: grid; justify-items: center; gap: 8px; }
-.empty-copy .eyebrow { color: var(--brand-soft-text); font-weight: 750; }
-.empty-copy h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.025em; }
-.empty-copy p { max-width: 34ch; margin: 0; color: var(--text-soft); line-height: 1.5; }
+.empty-state { position: relative; display: grid; place-items: center; min-height: 170px; padding: 32px 24px; overflow: hidden; border: 1px solid var(--border); border-radius: 24px; text-align: center; background: linear-gradient(145deg, var(--surface), var(--surface-elevated)); box-shadow: 0 16px 40px var(--shadow); }
 .empty-hint { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-muted); background: var(--surface-elevated); font-size: .78rem; }
 .empty-hint span { color: var(--brand); font-size: 1rem; line-height: 1; }
 .error { text-align: center; padding: 42px 20px; color: var(--text-muted); }
