@@ -48,8 +48,8 @@ function themeToggleMarkup() {
 
 function openInboxDecision(item: Record<string, unknown>) {
   const decisionId = String(item.decision_id);
-  const editAvailable = Boolean(item.can_edit);
-  openDecision(decisionId, editAvailable, !editAvailable);
+  const viewAvailable = item.can_view !== false;
+  openDecision(decisionId, !viewAvailable, viewAvailable);
 }
 
 function bindThemeToggle() {
@@ -75,8 +75,36 @@ function statusLabel(status: unknown): string {
   return "Review";
 }
 
-function showToast(message: string) {
+function priorityLabel(priority: unknown): string {
+  const value = String(priority || "").toLowerCase();
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+}
+
+function relativeTime(value: unknown): string {
+  const timestamp = new Date(String(value || "")).getTime();
+  if (!Number.isFinite(timestamp)) return "";
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+function responseLabel(outcome: unknown): string {
+  return ({
+    recommended: "Approved",
+    alternative: "Alternative selected",
+    rejected: "Rejected",
+    abstained: "Abstained",
+    deferred: "Deferred",
+  } as Record<string, string>)[String(outcome || "")] || "Recorded";
+}
+
+function showToast(message: string, tone: "neutral" | "approved" | "denied" = "neutral") {
   toast.textContent = message;
+  toast.classList.remove("approved", "denied");
+  if (tone !== "neutral") toast.classList.add(tone);
   toast.classList.add("show");
   window.setTimeout(() => toast.classList.remove("show"), 2400);
 }
@@ -121,21 +149,21 @@ async function loadInbox(tab: InboxTab = "all", directToCards = false) {
       const isReview = tab === "all" && !terminalStatuses.has(String(item.status));
       const openButton = isReview
         ? `<button class="inbox-open" data-decision="${escapeHtml(item.decision_id)}" aria-label="Open ${escapeHtml(item.title)}">
-          <div class="item-card-header"><span class="status-chip">${status}</span><span class="badge">${escapeHtml(item.priority)}</span></div>
+          <div class="item-card-header"><span class="status-chip">${status}</span><span class="badge">${escapeHtml(priorityLabel(item.priority))}</span></div>
           <div class="item-title">${escapeHtml(item.title)}</div>
           <div class="item-summary">${escapeHtml(item.summary)}</div>
-          <div class="item-meta"><span>Requested by ${escapeHtml(item.source_profile)}</span><span>${escapeHtml(item.card_count)} decision${item.card_count === 1 ? "" : "s"}</span><time datetime="${escapeHtml(item.created_at)}">${new Date(String(item.created_at)).toLocaleString()}</time></div>
+          <div class="item-meta"><span>by ${escapeHtml(item.source_profile)}</span><span>${escapeHtml(item.card_count)} decision${item.card_count === 1 ? "" : "s"}</span><time datetime="${escapeHtml(item.created_at)}" title="${escapeHtml(new Date(String(item.created_at)).toLocaleString())}">${relativeTime(item.created_at)}</time></div>
         </button>`
         : `<button class="inbox-open archived-item" data-view-decision="${escapeHtml(item.decision_id)}" aria-label="Open ${escapeHtml(item.title)}">
-          <div class="item-card-header"><span class="status-chip">${status}</span><span class="badge">${escapeHtml(item.priority)}</span></div>
+          <div class="item-card-header"><span class="status-chip">${status}</span><span class="badge">${escapeHtml(priorityLabel(item.priority))}</span></div>
           <div class="item-title">${escapeHtml(item.title)}</div>
           <div class="item-summary">${escapeHtml(item.summary)}</div>
-          <div class="item-meta"><span>Requested by ${escapeHtml(item.source_profile)}</span><span>${escapeHtml(item.card_count)} decision${item.card_count === 1 ? "" : "s"}</span><time datetime="${escapeHtml(item.created_at)}">${new Date(String(item.created_at)).toLocaleString()}</time></div>
+          <div class="item-meta"><span>by ${escapeHtml(item.source_profile)}</span><span>${escapeHtml(item.card_count)} decision${item.card_count === 1 ? "" : "s"}</span><time datetime="${escapeHtml(item.created_at)}" title="${escapeHtml(new Date(String(item.created_at)).toLocaleString())}">${relativeTime(item.created_at)}</time></div>
         </button>`;
       const actionButtons = [
         item.can_edit ? `<button class="item-action edit-action" data-edit-decision="${escapeHtml(item.decision_id)}">Edit</button>` : "",
-        (item.can_apply || item.can_resume || item.can_submit) ? `<button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">${item.decision_type === "ordinary" ? (item.can_resume ? "Apply decision" : "Submit decision") : "Apply Wiki changes"}</button>` : "",
         item.can_archive ? `<button class="item-action archive-action" data-archive-decision="${escapeHtml(item.decision_id)}">Archive</button>` : "",
+        (item.can_apply || item.can_resume || item.can_submit) ? `<button class="item-action apply-action" data-apply-decision="${escapeHtml(item.decision_id)}">${item.decision_type === "ordinary" ? (item.can_resume ? "Apply decision" : "Submit decision") : "Apply"}</button>` : "",
       ].join("");
       return `
       <article class="inbox-item">
@@ -196,18 +224,27 @@ function renderDeck() {
   const card = deck[Math.min(cardIndex, deck.length - 1)];
   const recommendation = card.options.find(option => option.is_recommended) || card.options[0];
   const completed = editMode || viewMode ? cardIndex : current.cards.length - pending.length;
-  const decisionStatus = card.response ? String(card.response.outcome).replace(/_/g, " ") : "not decided";
+  const decisionStatus = card.response ? responseLabel(card.response.outcome) : "Pending";
+  const responseTone = card.response?.outcome === "recommended" || card.response?.outcome === "alternative"
+    ? "approved"
+    : card.response?.outcome === "rejected"
+      ? "denied"
+      : card.response?.outcome === "abstained"
+        ? "abstained"
+        : "";
   app.innerHTML = `<section class="shell">
-    <header class="app-header review-topline" aria-label="Weekly Memory Wiki card review"><div><div class="eyebrow">Weekly Memory Wiki</div><h1>Review cards</h1></div><div class="header-tools"><span class="progress">${completed + 1} of ${current.cards.length}</span>${themeToggleMarkup()}</div></header>
-    <div class="deck-header"><button class="back" aria-label="Back to inbox">← Inbox</button></div>
-    <article class="card" tabindex="0" aria-label="Decision card: ${escapeHtml(card.title)}" aria-describedby="swipe-help">
-      <div class="item-row"><div class="card-context"><span class="eyebrow">Requested by ${escapeHtml(card.source_profile)}</span>${viewMode && card.response ? `<span class="decision-chip"><span class="decision-chip-label">Decision</span><strong>${escapeHtml(decisionStatus)}</strong>${card.response.note ? `<span class="response-note">${escapeHtml(card.response.note)}</span>` : ""}</span>` : ""}</div><span class="badge">${escapeHtml(card.priority)}</span></div>
-      <h2>${escapeHtml(card.title)}</h2>
-      <p>${escapeHtml(card.summary)}</p>
-      <blockquote class="recommendation"><div class="recommendation-heading"><span class="recommendation-mark" aria-hidden="true">✦</span><span class="eyebrow">Hermes recommends</span></div><strong>${escapeHtml(recommendation.label)}</strong><span>${escapeHtml(recommendation.reason || recommendation.details)}</span></blockquote>
-      ${viewMode ? `<div class="view-controls"><button class="secondary view-prev" ${cardIndex === 0 ? "disabled" : ""}>Previous</button><button class="primary view-next" ${cardIndex >= deck.length - 1 ? "disabled" : ""}>Next</button></div>` : ""}
+    <header class="app-header review-topline" aria-label="Hermes Decision Inbox card review"><div><div class="eyebrow">Hermes Decision Inbox</div><h1>Review cards</h1></div><div class="header-tools">${themeToggleMarkup()}</div></header>
+    <div class="deck-header"><button class="back" aria-label="Back to inbox">← Inbox</button><div class="deck-tools"><span class="progress">${completed + 1} of ${current.cards.length}</span>${viewMode ? `<div class="view-nav"><button class="secondary view-prev" ${cardIndex === 0 ? "disabled" : ""}>Previous</button><button class="primary view-next" ${cardIndex >= deck.length - 1 ? "disabled" : ""}>Next</button></div>` : ""}</div></div>
+    <article class="card${responseTone ? ` response-${responseTone}` : ""}" tabindex="0" aria-label="Decision card: ${escapeHtml(card.title)}" aria-describedby="swipe-help">
+      <div class="card-content">
+        <div class="item-row"><div class="card-context"><span class="eyebrow">by ${escapeHtml(card.source_profile)}</span></div><div class="card-badges">${card.response ? `<span class="response-badge">${escapeHtml(decisionStatus)}</span>${card.response.note ? `<span class="response-note">${escapeHtml(card.response.note)}</span>` : ""}` : ""}<span class="badge">${escapeHtml(priorityLabel(card.priority))}</span></div></div>
+        <h2>${escapeHtml(card.title)}</h2>
+        <p>${escapeHtml(card.summary)}</p>
+        <blockquote class="recommendation"><div class="recommendation-heading"><span class="recommendation-mark" aria-hidden="true">✦</span><span class="eyebrow">Hermes recommends</span></div><strong>${escapeHtml(recommendation.label)}</strong><span>${escapeHtml(recommendation.reason || recommendation.details)}</span></blockquote>
+      </div>
+      <div class="gesture-feedback" aria-hidden="true"><span data-feedback="recommended">Approve</span><span data-feedback="rejected">Reject</span><span data-feedback="abstained">Abstain</span><span data-feedback="alternatives">Alternatives</span></div>
     </article>
-    <footer id="swipe-help" class="app-footer swipe-help" role="contentinfo">Swipe right to accept · left to reject · up to abstain · down for alternatives</footer>
+    <footer id="swipe-help" class="app-footer swipe-help" role="contentinfo">${viewMode ? "Use Previous and Next to browse cards" : "Swipe right to accept · left to reject · up to abstain · down for alternatives"}</footer>
   </section>`;
   app.querySelector<HTMLButtonElement>(".back")!.onclick = () => loadInbox("all", false);
   bindThemeToggle();
@@ -225,6 +262,27 @@ function renderDeck() {
 function bindSwipe(element: HTMLElement, card: Card) {
   let startX = 0, startY = 0, tracking = false, moved = false, pointerId: number | null = null;
   let suppressClickUntil = 0;
+  const resetGesturePreview = () => {
+    element.removeAttribute("data-gesture");
+    element.style.removeProperty("--gesture-progress");
+    element.style.removeProperty("--gesture-blur");
+    element.style.removeProperty("--gesture-content-opacity");
+  };
+  const updateGesturePreview = (dx: number, dy: number) => {
+    const distance = Math.hypot(dx, dy);
+    const progress = Math.min(1, Math.max(0, (distance - 8) / 150));
+    if (!progress) {
+      resetGesturePreview();
+      return;
+    }
+    const direction = Math.abs(dx) >= Math.abs(dy)
+      ? (dx < 0 ? "rejected" : "recommended")
+      : (dy < 0 ? "abstained" : "alternatives");
+    element.dataset.gesture = direction;
+    element.style.setProperty("--gesture-progress", progress.toFixed(3));
+    element.style.setProperty("--gesture-blur", `${(progress * 5).toFixed(2)}px`);
+    element.style.setProperty("--gesture-content-opacity", String(1 - progress * .38));
+  };
   element.onpointerdown = event => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     tracking = true;
@@ -242,6 +300,7 @@ function bindSwipe(element: HTMLElement, card: Card) {
     element.style.transition = "none";
     element.style.transform = `translate(${dx * .42}px, ${dy * .34}px) rotate(${dx * .035}deg)`;
     element.style.opacity = String(Math.max(.72, 1 - Math.hypot(dx, dy) / 700));
+    updateGesturePreview(dx, dy);
     event.preventDefault();
   };
   const finish = (event: PointerEvent, cancelled = false) => {
@@ -256,6 +315,7 @@ function bindSwipe(element: HTMLElement, card: Card) {
     element.style.transition = "";
     element.style.transform = "";
     element.style.opacity = "";
+    resetGesturePreview();
     if (action === "alternatives") showDetails(card, true);
     else if (action) saveResponse(card, action);
   };
@@ -288,6 +348,13 @@ async function saveResponse(card: Card, outcome: Outcome, selected: string | nul
   current = await api<Decision>(`/api/cards/${card.card_id}/response`, {
     method: "PUT", body: JSON.stringify({ card_version: card.version, outcome, selected_option_id: selected, note })
   });
+  const feedback: Record<Outcome, {label: string; tone: "neutral" | "approved" | "denied"}> = {
+    recommended: {label: "Approved", tone: "approved"},
+    alternative: {label: "Alternative selected", tone: "approved"},
+    rejected: {label: "Denied", tone: "denied"},
+    abstained: {label: "Abstained", tone: "neutral"},
+  };
+  showToast(`${feedback[outcome].label} · ${card.title}`, feedback[outcome].tone);
   if (editMode) {
     cardIndex += 1;
     if (cardIndex >= current.cards.length) {
