@@ -1,0 +1,25 @@
+{
+  "application": "hermes-decision-inbox",
+  "change": "frontend-interactions-and-review-ui",
+  "source_revision": "bdd5f67cbe8f750b43630f662cb7c5bda4cafba9",
+  "source_files": {
+    "web/src/main.ts": "e0f075225483dac7a6f0aeba563923b5d816c6c6aee991926305ed084209b207",
+    "web/src/style.css": "5a287e9c6f36485be262986a0c6073ef2d4cbbafa4eb9f1bae59ae4aaf3770e8"
+  },
+  "image": "hermes-decision-inbox:v1.5-bdd5f67",
+  "image_digest": "sha256:4ae2979c1ec1a2a149dcf4bc165ce27202f243c3203ba0aa729129876625e3e3",
+  "compose_file": "/srv/laduex/apps/hermes-decision-inbox/deploy/compose.hostinger.yaml",
+  "compose_project": "deploy",
+  "service": "decision-inbox",
+  "bind": "127.0.0.1:8088",
+  "private_url": "https://hermes-prod.tail4766ea.ts.net:8451",
+  "backup": "/srv/laduex/backups/hermes-decision-inbox/predeploy-20260912T053223Z-frontend",
+  "verification": [
+    "61 backend tests passed, 3 skipped",
+    "5 frontend tests passed and production build passed",
+    "10 Skill checks passed",
+    "container healthy and loopback/private /healthz returned status ok",
+    "served frontend bundle contains the v1.5 Hermes Decision Inbox marker"
+  ],
+  "rollback": "restore frontend-source.tar.gz and compose.hostinger.yaml from the backup, then recreate only hermes-decision-inbox"
+}
