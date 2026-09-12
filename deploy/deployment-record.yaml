@@ -61,3 +61,9 @@ verification:
   reset_canary_execution: exec_0e5d3117f0851e5ccbc6ff2a queued with zero delivery attempts
   reset_canary_isolation: no matching Iris session message or inbound log entry
   weekly_cron_contract: unchanged and healthy
+  weekly_apply_canary_decision: dec_f2f45e4c743b94b28ceba637 archived
+  weekly_apply_canary_execution: exec_d14b7427a438251107c8aeba completed in one attempt
+  weekly_apply_canary_manifest_sha256: 534283aab974c6a7603d7a36000c68bcd3aaef0420a15325e2310d476c51ae09
+  weekly_apply_canary_notifications: 3 sent
+  weekly_apply_canary_backup_and_receipt: verified mode 0600
+  weekly_apply_canary_artifact: /srv/laduex/backups/hermes-decision-inbox/canaries/20260912T132731Z

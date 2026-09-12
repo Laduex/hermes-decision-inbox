@@ -1,0 +1,18 @@
+{
+  "tested_at": "2026-09-12T13:27:31Z",
+  "scope": "production weekly Wiki guarded Apply path",
+  "decision_id": "dec_f2f45e4c743b94b28ceba637",
+  "execution_id": "exec_d14b7427a438251107c8aeba",
+  "decision_status": "ARCHIVED",
+  "execution_status": "COMPLETED",
+  "attempt_count": 1,
+  "manifest_sha256": "534283aab974c6a7603d7a36000c68bcd3aaef0420a15325e2310d476c51ae09",
+  "target_sha256": "fea0570d762754a58215bad749b77e07cd6c46f3dcc8b18affa835a76f58af9b",
+  "backup_path": "/srv/laduex/state/hermes-decision-inbox/backups/wiki-20260912T132732Z-534283aab974.tar.gz",
+  "receipt_path": "/srv/laduex/state/hermes-decision-inbox/manifests/receipts/534283aab974c6a7603d7a36000c68bcd3aaef0420a15325e2310d476c51ae09.json",
+  "preserved_canary_artifact": "/srv/laduex/backups/hermes-decision-inbox/canaries/20260912T132731Z/.decision-inbox-weekly-canary-20260912T132731Z.md",
+  "notification_status": "3 SENT",
+  "audit_manifest_hash_present": true,
+  "private_health": "ok",
+  "existing_content_pages_modified": false
+}
