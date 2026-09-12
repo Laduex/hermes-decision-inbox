@@ -23,6 +23,31 @@ def test_publication_guard_replaces_interactive_silent_with_direct_link():
     assert guard.transform(response_text="unchanged", session_id="session-1") is None
 
 
+def test_plugin_managers_share_one_profile_aware_receiver(monkeypatch):
+    from hermes_decision_inbox import plugin as plugin_module
+
+    monkeypatch.setattr(plugin_module, "_shared_receiver", None)
+
+    default = SimpleNamespace(
+        profile_name="default",
+        get_config=lambda key, default=None: default,
+    )
+    iris = SimpleNamespace(
+        profile_name="iris",
+        get_config=lambda key, default=None: default,
+    )
+    first, owns_first = plugin_module._continuation_receiver_for(default)
+    second, owns_second = plugin_module._continuation_receiver_for(iris)
+    try:
+        assert first is second
+        assert owns_first is True
+        assert owns_second is False
+        second.set_publish_token("iris", "iris-token")
+        assert sorted(first._publish_tokens) == ["iris"]
+    finally:
+        plugin_module._release_continuation_receiver(first)
+
+
 def test_route_verification_accepts_compression_tip_but_rejects_reset(monkeypatch):
     rows = {
         "original": {"id": "original", "source": "telegram", "session_key": "route-1",

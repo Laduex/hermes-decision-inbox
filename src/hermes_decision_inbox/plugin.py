@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from importlib.resources import files
 from pathlib import Path
 
@@ -26,10 +27,32 @@ Use `read_decisions` when you need to check which decisions remain unresolved be
 """
 
 
+_receiver_lock = threading.Lock()
+_shared_receiver: ContinuationReceiver | None = None
+
+
+def _continuation_receiver_for(ctx) -> tuple[ContinuationReceiver, bool]:
+    """Share one gateway poller across Hermes' profile-specific plugin managers."""
+    global _shared_receiver
+    with _receiver_lock:
+        if _shared_receiver is None or _shared_receiver._stopping:
+            _shared_receiver = ContinuationReceiver(ctx)
+            return _shared_receiver, True
+        return _shared_receiver, False
+
+
+def _release_continuation_receiver(receiver: ContinuationReceiver) -> None:
+    global _shared_receiver
+    receiver.stop()
+    with _receiver_lock:
+        if _shared_receiver is receiver:
+            _shared_receiver = None
+
+
 def register(ctx) -> None:
     """Register the tool, CLI, prompt policy, and explicit plugin skills."""
     publication_guard = PublicationGuard()
-    continuation_receiver = ContinuationReceiver(ctx)
+    continuation_receiver, owns_receiver = _continuation_receiver_for(ctx)
 
     def publication_recorded(profile: str, session_id: str, publication: dict, token: str) -> None:
         publication_guard.record(session_id, publication)
@@ -117,5 +140,5 @@ def register(ctx) -> None:
         ctx.register_hook("on_session_reset", continuation_receiver.session_reset)
         ctx.register_hook("pre_gateway_dispatch", ensure_receiver)
         continuation_receiver.ensure_started()
-    if hasattr(ctx, "on_unload"):
-        ctx.on_unload(continuation_receiver.stop)
+    if owns_receiver and hasattr(ctx, "on_unload"):
+        ctx.on_unload(lambda: _release_continuation_receiver(continuation_receiver))

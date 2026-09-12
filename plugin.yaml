@@ -1,7 +1,7 @@
 manifest_version: 2
 api_version: 1
 name: hermes-decision-inbox
-version: 0.3.1
+version: 0.3.2
 description: Private Hermes session decisions and weekly Memory Wiki review publishing for Tailscale.
 author: Vaughn Dazo, Hermes Agent
 license: MIT

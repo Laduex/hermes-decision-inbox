@@ -1,7 +1,7 @@
 ARG HERMES_BASE_IMAGE=hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911
 FROM ${HERMES_BASE_IMAGE}
 
-COPY release/hermes_decision_inbox-0.3.1-py3-none-any.whl /tmp/hermes_decision_inbox-0.3.1-py3-none-any.whl
-RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache /tmp/hermes_decision_inbox-0.3.1-py3-none-any.whl && \
-    rm /tmp/hermes_decision_inbox-0.3.1-py3-none-any.whl && \
-    /opt/hermes/.venv/bin/python -c "import hermes_decision_inbox; assert hermes_decision_inbox.__version__ == '0.3.1'"
+COPY release/hermes_decision_inbox-0.3.2-py3-none-any.whl /tmp/hermes_decision_inbox-0.3.2-py3-none-any.whl
+RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache /tmp/hermes_decision_inbox-0.3.2-py3-none-any.whl && \
+    rm /tmp/hermes_decision_inbox-0.3.2-py3-none-any.whl && \
+    /opt/hermes/.venv/bin/python -c "import hermes_decision_inbox; assert hermes_decision_inbox.__version__ == '0.3.2'"
