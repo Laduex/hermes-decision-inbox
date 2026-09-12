@@ -35,7 +35,7 @@ Publish the local origin with Tailscale Serve, for example `tailscale serve --bg
 
 1. Publish a harmless synthetic weekly Wiki card with `decision-inbox publish-test`.
 2. Confirm exactly one Telegram notification is sent when notification credentials are configured.
-3. Open the private URL and verify Review and Completed tabs.
+3. Open the private URL and verify the Inbox and Archive tabs.
 4. Verify Right/Left/Up/Down mean Accept/Reject/Abstain/Alternatives.
 5. Repeat with mobile swipes and visible buttons.
 6. Close and reopen the browser; saved responses must remain.

@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlencode
 
 
 class DecisionInboxError(RuntimeError):
@@ -59,3 +60,32 @@ class DecisionInboxClient:
                 return json.loads(response.read().decode("utf-8"))
         except Exception as exc:
             raise DecisionInboxError(f"Could not read decision status: {exc}") from exc
+
+    def read_decisions(
+        self,
+        *,
+        scope: str,
+        source_session_id: str | None = None,
+        include_resolved: bool = False,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        query = {"scope": scope, "include_resolved": str(include_resolved).lower(), "limit": str(limit)}
+        if source_session_id:
+            query["source_session_id"] = source_session_id
+        url = f"{self.service_url.rstrip('/')}/internal/v1/decisions?{urlencode(query)}"
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Authorization": f"Bearer {self.publish_token}",
+                "User-Agent": "hermes-decision-inbox/0.2.0",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise DecisionInboxError(f"Could not read Decision Inbox entries: {exc}") from exc
+        if not isinstance(result, dict) or not isinstance(result.get("items"), list):
+            raise DecisionInboxError("Decision service returned an invalid decision list")
+        return result

@@ -2,7 +2,7 @@ manifest_version: 2
 api_version: 1
 name: hermes-decision-inbox
 version: 0.2.1
-description: Private weekly Memory Wiki review publishing for Tailscale.
+description: Private Hermes session decisions and weekly Memory Wiki review publishing for Tailscale.
 author: Vaughn Dazo, Hermes Agent
 license: MIT
 kind: standalone
@@ -11,6 +11,8 @@ platforms:
   - macos
 provides_tools:
   - publish_weekly_wiki_review
+  - publish_decision
+  - read_decisions
 python_dependencies:
   - httpx>=0.27,<1
 config_schema:
@@ -23,8 +25,11 @@ config_schema:
     default: 14
   auto_resume:
     type: bool
-    default: false
+    default: true
   wiki_executor_enabled:
+    type: bool
+    default: true
+  general_decisions_enabled:
     type: bool
     default: true
 tags: [tailscale, wiki, review, workflow]

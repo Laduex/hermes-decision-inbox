@@ -1,8 +1,8 @@
-# Hermes Weekly Wiki Decision Dashboard
+# Hermes Decision Inbox
 
-`hermes-decision-inbox` is a standalone Hermes plugin and private web dashboard for the Weekly Memory Wiki Review. The dashboard runs continuously behind Tailscale. Every Sunday, the existing Yuna cron reviews the prior seven days and publishes one batch of exact Wiki decisions. Vaughn reviews the cards and explicitly applies the selected changes.
+`hermes-decision-inbox` is a standalone Hermes plugin and private web dashboard for explicit user decisions. The dashboard runs continuously behind Tailscale. The original workflow is the Sunday Weekly Memory Wiki Review, and the general `publish_decision` tool lets any permitted Hermes task pause for a user choice and resume its originating session after approval.
 
-The cron never edits the canonical Wiki. Telegram is notification-only and sends a link to the private dashboard. The service does not consume Telegram updates and does not change Hermes core.
+The cron never edits the canonical Wiki. Telegram is notification-only and sends a link to the private dashboard. The service does not consume Telegram updates and does not change Hermes core. A user can apply a session decision to resume the exact Hermes session, apply selected Wiki changes, or archive the entire decision without resuming the task.
 
 ## Interaction model
 
@@ -14,10 +14,10 @@ The cron never edits the canonical Wiki. Telegram is notification-only and sends
 
 ## Repository layout
 
-- `src/hermes_decision_inbox/`: Hermes plugin, `publish_weekly_wiki_review` tool, and diagnostics CLI.
+- `src/hermes_decision_inbox/`: Hermes plugin, weekly, general, and read-only decision tools, and diagnostics CLI.
 - `service/app/`: FastAPI service, SQLite repository, notification outbox, and deterministic Wiki worker.
 - `web/`: keyboard- and touch-friendly web dashboard built with TypeScript and Vite.
-- `skills/`: weekly-review routing and Wiki-apply instructions registered by the plugin.
+- `skills/`: session-decision, read-decision, weekly-review, and Wiki-apply instructions registered by the plugin.
 - `tests/`: isolated schema, state, identity, plugin, UI-gesture, and Wiki executor tests.
 
 The matching Hermes source worktree is `/Users/vaughndazo/Documents/LDX/Apps/hermes-agent` on branch `feat/telegram-decision-inbox`. It remains unchanged because this feature uses the public plugin interface.
@@ -61,7 +61,7 @@ Use only the isolated development home and disposable Wiki fixture. Never point 
 - Tailscale Serve is the only browser entrypoint and the server accepts only the configured tailnet owner identity.
 - The app origin remains on loopback; direct-origin requests do not receive Tailscale identity headers.
 - Browser sessions are short-lived signed tokens; bot and Hermes credentials never reach the browser.
-- The publisher is limited to Yuna/default, batched weekly reviews, and `wiki_patch_v1` cards.
+- The weekly publisher is limited to Yuna/default, batched reviews, and `wiki_patch_v1` cards; the general publisher requires a recoverable source session and is configured separately.
 - Every state transition is transactional and audited in SQLite WAL mode.
 - Submitted manifests are immutable and SHA-256-addressed.
 - Wiki paths are containment-checked; symlinks and traversal fail closed; base hashes are verified before any write; failures restore the complete target snapshot.

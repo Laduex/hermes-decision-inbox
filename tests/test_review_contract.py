@@ -25,3 +25,13 @@ def test_deployment_contract_carries_session_search_guardrails():
     assert "never reuse an argument object" in normalized
     assert "redacted, date-bounded" in normalized
     assert "Coverage and uncertainty" in normalized
+
+
+def test_apply_resume_smoke_skill_defines_one_card_and_resumed_reply():
+    text = (ROOT / "skills/decision-inbox-apply-resume-smoke/SKILL.md").read_text(encoding="utf-8")
+
+    assert "Call `publish_decision` exactly once" in text
+    assert "option_id`: `received`" in text
+    assert "After the tool returns `PUBLISHED`, return exactly `[SILENT]`" in text
+    assert "Decision Inbox smoke test passed: your decision was received and applied to this session." in text
+    assert "Do not use from a delegated session" in text

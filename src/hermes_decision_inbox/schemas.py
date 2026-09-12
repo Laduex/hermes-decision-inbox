@@ -124,6 +124,32 @@ class WeeklyWikiReviewRequest(BaseModel):
         return self.batch
 
 
+class SessionDecisionRequest(DecisionRequest):
+    """A human decision that resumes the originating Hermes session."""
+
+    @model_validator(mode="after")
+    def ordinary_only(self) -> "SessionDecisionRequest":
+        cards = self.cards()
+        if any(
+            card.execution is not None
+            or card.recommendation.execution is not None
+            or any(option.execution is not None for option in card.alternatives)
+            for card in cards
+        ):
+            raise ValueError("session decisions cannot contain Wiki execution payloads")
+        return self
+
+
+class ReadDecisionsRequest(BaseModel):
+    """Read-only scope for checking decisions that are still unresolved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope: Literal["session", "profile"] = "session"
+    include_resolved: bool = False
+    limit: int = Field(default=20, ge=1, le=50)
+
+
 REQUEST_DECISION_SCHEMA: dict[str, Any] = {
     "name": "publish_weekly_wiki_review",
     "description": (
@@ -133,4 +159,26 @@ REQUEST_DECISION_SCHEMA: dict[str, Any] = {
         "batch card. This tool is not for ordinary decisions."
     ),
     "parameters": WeeklyWikiReviewRequest.model_json_schema(),
+}
+
+
+SESSION_DECISION_SCHEMA: dict[str, Any] = {
+    "name": "publish_decision",
+    "description": (
+        "Publish a human decision request tied to the current Hermes session. The user reviews "
+        "the decision in the private Decision Inbox; applying it resumes that exact session with "
+        "the selected outcome. Use this for ordinary decisions, not direct Wiki edits."
+    ),
+    "parameters": SessionDecisionRequest.model_json_schema(),
+}
+
+
+READ_DECISIONS_SCHEMA: dict[str, Any] = {
+    "name": "read_decisions",
+    "description": (
+        "Read the Decision Inbox entries visible to the current Hermes profile. By default, "
+        "show only unresolved decisions for the current session. This is read-only; it cannot "
+        "apply, discard, archive, or publish a decision."
+    ),
+    "parameters": ReadDecisionsRequest.model_json_schema(),
 }

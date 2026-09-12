@@ -58,6 +58,30 @@ def test_auto_resume_can_be_disabled_for_interface_canary(settings, single_reque
         assert conn.execute("SELECT COUNT(*) FROM execution_attempts").fetchone()[0] == 0
 
 
+def test_discard_closes_open_decision_without_queueing_resume(db, single_request):
+    decision_id = db.publish(single_request, "iris")["decision_id"]
+    decision = db.get_decision(decision_id)
+    discarded = db.discard(decision_id, decision["version"], 424242)
+    assert discarded["status"] == "CANCELLED"
+    assert all(card["status"] == "CANCELLED" for card in discarded["cards"])
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM execution_attempts").fetchone()[0] == 0
+        assert conn.execute(
+            "SELECT event_type FROM audit_events WHERE decision_id=? ORDER BY event_id DESC LIMIT 1",
+            (decision_id,),
+        ).fetchone()[0] == "decision_discarded"
+
+
+def test_archive_moves_open_decision_to_archive_without_cancelling_cards(db, single_request):
+    decision_id = db.publish(single_request, "iris")["decision_id"]
+    decision = db.get_decision(decision_id)
+    archived = db.archive(decision_id, decision["version"], 424242)
+    assert archived["status"] == "ARCHIVED"
+    assert archived["cards"][0]["status"] == "READY"
+    assert [item["decision_id"] for item in db.inbox("all")] == []
+    assert [item["decision_id"] for item in db.inbox("archive")] == [decision_id]
+
+
 def test_published_profile_policy_overrides_service_auto_resume(db, single_request):
     request = dict(single_request)
     request["auto_resume"] = False

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from service.app.integrations import HermesClient, decision_resume_prompt
@@ -44,7 +46,7 @@ async def test_worker_resumes_exact_profile_and_session_once(db, settings, singl
     start = fake.calls[1]
     assert start[:4] == ("start", "iris", "session-1", f"decision-resume:{decision_id}:1")
     assert "Authenticated Decision Inbox response" in start[4]
-    assert db.get_decision(decision_id)["status"] == "COMPLETED"
+    assert db.get_decision(decision_id)["status"] == "ARCHIVED"
     assert await workers._execution_once() is False
 
 
@@ -91,6 +93,38 @@ def test_rejected_prompt_grants_no_alternative(single_request):
     prompt = decision_resume_prompt(manifest)
     assert "Selected outcome: rejected" in prompt
     assert "Selected option: none" in prompt
+
+
+def test_applied_smoke_decision_resumes_with_received_choice(db, settings):
+    request = {
+        "name": "decision-inbox-apply-resume-smoke",
+        "title": "Did you receive this Decision Inbox smoke test?",
+        "summary": "Confirm that applying this card resumes the originating session.",
+        "details": "This is a harmless end-to-end receipt test; it does not change Wiki or external data.",
+        "recommendation": {
+            "option_id": "received",
+            "label": "Yes, I received it",
+            "reason": "Confirms that Apply returns the user's choice to the originating session.",
+        },
+        "alternatives": [],
+        "evidence": [],
+        "priority": "normal",
+        "source_profile": "iris",
+        "source_session_id": "session-smoke",
+        "source_task_id": "task-smoke",
+        "plugin_version": "1.5.0",
+    }
+    decision_id = db.publish(request, "iris")["decision_id"]
+    decision = db.get_decision(decision_id)
+    decision = db.respond(decision["cards"][0]["card_id"], 1, "recommended", None, "", 424242)
+    submitted = db.submit(decision_id, decision["version"], 424242)
+    manifest_path = settings.manifest_root / decision_id / f"{submitted['sha256']}.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    prompt = decision_resume_prompt(manifest)
+    assert "Did you receive this Decision Inbox smoke test?" in prompt
+    assert "Selected outcome: recommended" in prompt
+    assert "Selected option: received" in prompt
 
 
 def test_hermes_client_uses_profile_scoped_multiplex_routes():

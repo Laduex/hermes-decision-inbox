@@ -8,7 +8,14 @@ from typing import Any
 
 from . import __version__
 from .client import DecisionInboxClient, DecisionInboxError
-from .schemas import REQUEST_DECISION_SCHEMA, WeeklyWikiReviewRequest
+from .schemas import (
+    READ_DECISIONS_SCHEMA,
+    REQUEST_DECISION_SCHEMA,
+    ReadDecisionsRequest,
+    SESSION_DECISION_SCHEMA,
+    SessionDecisionRequest,
+    WeeklyWikiReviewRequest,
+)
 
 
 def _tool_result(payload: dict[str, Any]) -> str:
@@ -56,12 +63,11 @@ def _config_bool(value: Any, default: bool) -> bool:
     raise ValueError("boolean setting must be true or false")
 
 
-def build_handler(ctx):
+def _build_publisher(ctx, request_type, *, weekly: bool):
     """Bind profile-aware configuration without storing cross-profile state."""
-
     def handle(args: dict[str, Any], **kwargs: Any) -> str:
         try:
-            request = WeeklyWikiReviewRequest.model_validate(args)
+            request = request_type.model_validate(args)
         except Exception as exc:
             return _tool_result({"status": "ERROR", "error": f"Invalid decision request: {exc}"})
 
@@ -72,25 +78,42 @@ def build_handler(ctx):
                 "status": "ERROR",
                 "error": "Decision Inbox is not configured; ask in ordinary chat instead.",
             })
-        if (ctx.profile_name or "default") != "default":
+        profile = ctx.profile_name or "default"
+        if weekly and profile != "default":
             return _tool_result({
                 "status": "ERROR",
                 "error": "Only Yuna/default may publish the weekly Memory Wiki review.",
             })
-        cards = request.cards()
-        try:
-            wiki_enabled = _config_bool(ctx.get_config("wiki_executor_enabled", default=True), True)
-        except ValueError as exc:
-            return _tool_result({"status": "ERROR", "error": f"Decision Inbox configuration error: {exc}"})
-        if not wiki_enabled:
-            return _tool_result({
-                "status": "ERROR",
-                "error": "Wiki decision publishing is disabled for this profile.",
-            })
+        if not weekly:
+            try:
+                enabled = _config_bool(ctx.get_config("general_decisions_enabled", default=True), True)
+            except ValueError as exc:
+                return _tool_result({"status": "ERROR", "error": f"Decision Inbox configuration error: {exc}"})
+            if not enabled:
+                return _tool_result({
+                    "status": "ERROR",
+                    "error": "General Decision Inbox publishing is disabled for this profile.",
+                })
+        else:
+            try:
+                wiki_enabled = _config_bool(ctx.get_config("wiki_executor_enabled", default=True), True)
+            except ValueError as exc:
+                return _tool_result({"status": "ERROR", "error": f"Decision Inbox configuration error: {exc}"})
+            if not wiki_enabled:
+                return _tool_result({
+                    "status": "ERROR",
+                    "error": "Wiki decision publishing is disabled for this profile.",
+                })
         try:
             expiry_days = max(1, min(365, int(ctx.get_config("default_expiry_days", default=14))))
         except (TypeError, ValueError):
             return _tool_result({"status": "ERROR", "error": "default_expiry_days must be an integer."})
+        try:
+            auto_resume = False if weekly else _config_bool(
+                ctx.get_config("auto_resume", default=True), True
+            )
+        except ValueError as exc:
+            return _tool_result({"status": "ERROR", "error": f"Decision Inbox configuration error: {exc}"})
 
         session_id = str(kwargs.get("session_id") or "").strip()
         task_id = str(kwargs.get("task_id") or "").strip()
@@ -107,11 +130,11 @@ def build_handler(ctx):
 
         payload = request.model_dump(mode="json", exclude_none=True)
         payload.update({
-            "source_profile": "default",
+            "source_profile": profile,
             "source_session_id": session_id,
             "source_task_id": task_id or session_id,
             "plugin_version": __version__,
-            "auto_resume": False,
+            "auto_resume": auto_resume,
             "default_expiry_days": expiry_days,
         })
         try:
@@ -121,8 +144,61 @@ def build_handler(ctx):
         return _tool_result({
             "status": "PUBLISHED",
             "decision_id": result["decision_id"],
-            "message": "Weekly review published. Return [SILENT].",
+            "message": (
+                "Weekly review published. Return [SILENT]."
+                if weekly else "Decision published. Return [SILENT] until the user responds."
+            ),
             "deduplicated": bool(result.get("deduplicated")),
+        })
+
+    return handle
+
+
+def build_handler(ctx):
+    """Build the weekly-only Wiki review publisher."""
+    return _build_publisher(ctx, WeeklyWikiReviewRequest, weekly=True)
+
+
+def build_general_handler(ctx):
+    """Build the general session-bound decision publisher."""
+    return _build_publisher(ctx, SessionDecisionRequest, weekly=False)
+
+
+def build_read_handler(ctx):
+    """Build a read-only Decision Inbox query scoped to the current profile."""
+    def handle(args: dict[str, Any] | None = None, **kwargs: Any) -> str:
+        try:
+            request = ReadDecisionsRequest.model_validate(args or {})
+        except Exception as exc:
+            return _tool_result({"status": "ERROR", "error": f"Invalid Decision Inbox read request: {exc}"})
+
+        service_url = str(ctx.get_config("service_url", default="http://decision-inbox:8080") or "").strip()
+        token = _secret("DECISION_INBOX_PUBLISH_TOKEN")
+        if not service_url or not token:
+            return _tool_result({
+                "status": "ERROR",
+                "error": "Decision Inbox is not configured; ask in ordinary chat instead.",
+            })
+        session_id = str(kwargs.get("session_id") or "").strip()
+        if request.scope == "session" and not session_id:
+            return _tool_result({
+                "status": "ERROR",
+                "error": "No recoverable Hermes session ID is available for a session-scoped read.",
+            })
+        try:
+            result = DecisionInboxClient(service_url, token).read_decisions(
+                scope=request.scope,
+                source_session_id=session_id if request.scope == "session" else None,
+                include_resolved=request.include_resolved,
+                limit=request.limit,
+            )
+        except DecisionInboxError as exc:
+            return _tool_result({"status": "ERROR", "error": str(exc)})
+        return _tool_result({
+            "status": "OK",
+            "scope": request.scope,
+            "include_resolved": request.include_resolved,
+            "items": result["items"],
         })
 
     return handle
@@ -135,4 +211,12 @@ def check_available(ctx) -> bool:
     )
 
 
-__all__ = ["REQUEST_DECISION_SCHEMA", "build_handler", "check_available"]
+__all__ = [
+    "READ_DECISIONS_SCHEMA",
+    "REQUEST_DECISION_SCHEMA",
+    "SESSION_DECISION_SCHEMA",
+    "build_general_handler",
+    "build_handler",
+    "build_read_handler",
+    "check_available",
+]

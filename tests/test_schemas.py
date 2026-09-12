@@ -3,7 +3,9 @@ from pydantic import ValidationError
 
 from hermes_decision_inbox.schemas import (
     DecisionRequest,
+    READ_DECISIONS_SCHEMA,
     REQUEST_DECISION_SCHEMA,
+    ReadDecisionsRequest,
     WeeklyWikiReviewRequest,
 )
 
@@ -36,6 +38,16 @@ def test_weekly_tool_schema_exposes_only_batch_mode():
 
     assert set(properties) == {"name", "batch"}
     assert "batch" in REQUEST_DECISION_SCHEMA["parameters"]["required"]
+
+
+def test_read_decisions_schema_defaults_to_session_scope():
+    request = ReadDecisionsRequest.model_validate({})
+    assert request.scope == "session"
+    assert request.include_resolved is False
+    assert request.limit == 20
+    assert set(READ_DECISIONS_SCHEMA["parameters"]["properties"]) == {
+        "scope", "include_resolved", "limit",
+    }
 
 
 def test_weekly_request_rejects_top_level_single_card_fields(single_request):

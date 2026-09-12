@@ -34,7 +34,16 @@ def test_real_hermes_discovers_external_plugin(tmp_path, monkeypatch):
     assert entry is not None
     assert entry.toolset == "decision_inbox"
     assert set(entry.schema["parameters"]["properties"]) == {"name", "batch"}
+    general_entry = registry.get_entry("publish_decision", scope=str(home.resolve()))
+    assert general_entry is not None
+    assert general_entry.toolset == "decision_inbox"
+    read_entry = registry.get_entry("read_decisions", scope=str(home.resolve()))
+    assert read_entry is not None
+    assert read_entry.toolset == "decision_inbox"
     assert manager.find_plugin_skill("hermes-decision-inbox:decision-inbox-routing") is not None
+    assert manager.find_plugin_skill("hermes-decision-inbox:decision-inbox-session-decisions") is not None
+    assert manager.find_plugin_skill("hermes-decision-inbox:decision-inbox-read-decisions") is not None
+    assert manager.find_plugin_skill("hermes-decision-inbox:decision-inbox-apply-resume-smoke") is not None
 
 
 def weekly_args(single_request):
@@ -117,3 +126,68 @@ def test_delegated_session_is_refused(monkeypatch, single_request):
     result = json.loads(build_handler(Context())(args, session_id="child-session", task_id="child-session"))
     assert result["status"] == "ERROR"
     assert "parent agent" in result["error"]
+
+
+def test_general_handler_publishes_for_current_profile_and_resumes(monkeypatch, single_request):
+    from hermes_decision_inbox.tool import build_general_handler
+
+    class Context:
+        profile_name = "iris"
+
+        def get_config(self, key, default=None):
+            if key == "service_url":
+                return "http://decision.test"
+            if key == "auto_resume":
+                return True
+            return default
+
+    captured = {}
+
+    def publish(self, payload):
+        captured.update(payload)
+        return {"decision_id": "dec_general", "deduplicated": False}
+
+    monkeypatch.setenv("DECISION_INBOX_PUBLISH_TOKEN", "iris-token")
+    monkeypatch.setattr("hermes_decision_inbox.tool.DecisionInboxClient.publish", publish)
+    args = {
+        key: value for key, value in single_request.items()
+        if not key.startswith("source_") and key != "plugin_version"
+    }
+    result = json.loads(build_general_handler(Context())(args, session_id="session-1", task_id="task-1"))
+    assert result["status"] == "PUBLISHED"
+    assert captured["source_profile"] == "iris"
+    assert captured["source_session_id"] == "session-1"
+    assert captured["source_task_id"] == "task-1"
+    assert captured["auto_resume"] is True
+
+
+def test_read_handler_defaults_to_current_session(monkeypatch):
+    from hermes_decision_inbox.tool import build_read_handler
+
+    class Context:
+        profile_name = "iris"
+
+        def get_config(self, key, default=None):
+            return "http://decision.test" if key == "service_url" else default
+
+    monkeypatch.setenv("DECISION_INBOX_PUBLISH_TOKEN", "iris-token")
+    captured = {}
+
+    def read_decisions(self, **kwargs):
+        captured.update(kwargs)
+        return {"scope": "session", "items": [{"decision_id": "dec_open", "status": "READY"}]}
+
+    monkeypatch.setattr("hermes_decision_inbox.tool.DecisionInboxClient.read_decisions", read_decisions)
+    result = json.loads(build_read_handler(Context())({}, session_id="session-1", task_id="task-1"))
+    assert result == {
+        "include_resolved": False,
+        "items": [{"decision_id": "dec_open", "status": "READY"}],
+        "scope": "session",
+        "status": "OK",
+    }
+    assert captured == {
+        "scope": "session",
+        "source_session_id": "session-1",
+        "include_resolved": False,
+        "limit": 20,
+    }

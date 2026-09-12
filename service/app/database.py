@@ -23,6 +23,9 @@ COMPLETED_STATES = {"COMPLETED", "EXPIRED", "CANCELLED"}
 HIDDEN_STATES = {"ARCHIVED"}
 EXPIRABLE_STATES = {"DRAFT", "READY", "NOTIFIED", "REVIEWING", "DEFERRED", "READY_TO_SUBMIT"}
 MERGEABLE_STATES = {"READY", "NOTIFIED", "REVIEWING", "DEFERRED", "READY_TO_SUBMIT"}
+ARCHIVEABLE_STATES = {"DRAFT", "READY", "NOTIFIED", "REVIEWING", "DEFERRED", "READY_TO_SUBMIT"}
+# Kept for the legacy discard endpoint and existing audit history. New UI flows use archive semantics.
+DISCARDABLE_STATES = ARCHIVEABLE_STATES
 
 
 def now() -> datetime:
@@ -260,16 +263,66 @@ class Database:
             output["cards"] = result_cards
             return output
 
+    def publisher_inbox(
+        self,
+        profile: str,
+        *,
+        source_session_id: str | None = None,
+        include_resolved: bool = False,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Return a minimal, profile-scoped read view for agent tooling."""
+        fields = (
+            "decision_id,name,title,source_profile,source_session_id,source_task_id,"
+            "plugin_version,priority,status,decision_type,auto_resume,version,"
+            "created_at,updated_at,expires_at"
+        )
+        with self.connect() as conn:
+            clauses = ["source_profile=?"]
+            params: list[Any] = [profile]
+            if source_session_id:
+                clauses.append("source_session_id=?")
+                params.append(source_session_id)
+            if not include_resolved:
+                placeholders = ",".join("?" for _ in OPEN_STATES)
+                clauses.append(f"status IN ({placeholders})")
+                params.extend(sorted(OPEN_STATES))
+            params.append(limit)
+            rows = conn.execute(
+                f"SELECT {fields} FROM decision_requests WHERE {' AND '.join(clauses)} "
+                "ORDER BY updated_at DESC LIMIT ?",
+                params,
+            ).fetchall()
+            items = []
+            for row in rows:
+                cards = conn.execute(
+                    "SELECT card_id,title,summary,status,priority,position FROM decision_cards "
+                    "WHERE decision_id=? ORDER BY position",
+                    (row["decision_id"],),
+                ).fetchall()
+                items.append({**dict(row), "cards": [dict(card) for card in cards]})
+            return items
+
     def inbox(self, tab: str) -> list[dict[str, Any]]:
         with self.connect() as conn:
             if tab == "all":
+                active_states = tuple(sorted(COMPLETED_STATES | HIDDEN_STATES))
                 rows = conn.execute(
-                    "SELECT * FROM decision_requests ORDER BY updated_at DESC",
+                    "SELECT * FROM decision_requests WHERE status NOT IN (%s) ORDER BY updated_at DESC"
+                    % ",".join("?" for _ in active_states),
+                    active_states,
                 ).fetchall()
             elif tab == "completed":
                 rows = conn.execute(
                     "SELECT * FROM decision_requests WHERE status IN (?,?,?) ORDER BY updated_at DESC",
                     tuple(sorted(COMPLETED_STATES)),
+                ).fetchall()
+            elif tab == "archive":
+                archive_states = tuple(sorted(COMPLETED_STATES | HIDDEN_STATES))
+                rows = conn.execute(
+                    "SELECT * FROM decision_requests WHERE status IN (%s) ORDER BY updated_at DESC"
+                    % ",".join("?" for _ in archive_states),
+                    archive_states,
                 ).fetchall()
             elif tab == "deferred":
                 rows = conn.execute(
@@ -287,6 +340,10 @@ class Database:
             items: list[dict[str, Any]] = []
             for row in rows:
                 decision_id = row["decision_id"]
+                first_card = conn.execute(
+                    "SELECT summary FROM decision_cards WHERE decision_id=? ORDER BY position LIMIT 1",
+                    (decision_id,),
+                ).fetchone()
                 latest = conn.execute(
                     "SELECT manifest_id,manifest_json FROM submission_manifests "
                     "WHERE decision_id=? ORDER BY submission_version DESC LIMIT 1",
@@ -318,12 +375,23 @@ class Database:
                     row["decision_type"] == "wiki_review"
                     and row["status"] == "READY_TO_SUBMIT"
                 )
+                can_resume = (
+                    row["decision_type"] == "ordinary"
+                    and row["status"] == "READY_TO_SUBMIT"
+                    and bool(row["auto_resume"])
+                )
+                can_submit = row["status"] == "READY_TO_SUBMIT"
                 items.append({
                     **dict(row),
+                    "summary": first_card["summary"] if first_card else "",
                     "card_count": conn.execute(
                         "SELECT COUNT(*) FROM decision_cards WHERE decision_id=?", (decision_id,),
                     ).fetchone()[0],
                     "can_apply": can_apply,
+                    "can_resume": can_resume,
+                    "can_submit": can_submit,
+                    "can_discard": row["status"] in DISCARDABLE_STATES,
+                    "can_archive": row["status"] in ARCHIVEABLE_STATES,
                     "can_edit": row["status"] in {"READY", "NOTIFIED", "REVIEWING", "DEFERRED", "READY_TO_SUBMIT"},
                     "apply_manifest_id": manifest_id if can_apply else None,
                     "apply_version": row["version"],
@@ -387,6 +455,53 @@ class Database:
                          (new, decided, decision_id))
             self._audit(conn, decision_id, "card_response_saved", f"telegram:{telegram_user_id}", old, new,
                         {"card_id": card_id, "outcome": outcome})
+        return self.get_decision(decision_id)
+
+    def discard(self, decision_id: str, expected_version: int, telegram_user_id: int) -> dict[str, Any]:
+        with self.transaction() as conn:
+            decision = conn.execute(
+                "SELECT * FROM decision_requests WHERE decision_id=?", (decision_id,),
+            ).fetchone()
+            if not decision:
+                raise NotFoundError("decision not found")
+            if decision["version"] != expected_version:
+                raise ConflictError("decision changed; reload before discarding")
+            if decision["status"] not in DISCARDABLE_STATES:
+                raise StateError("this decision can no longer be discarded")
+            conn.execute(
+                "UPDATE decision_cards SET status='CANCELLED' WHERE decision_id=? AND status!='SUBMITTED'",
+                (decision_id,),
+            )
+            conn.execute(
+                "UPDATE decision_requests SET status='CANCELLED',updated_at=?,version=version+1 WHERE decision_id=?",
+                (iso(), decision_id),
+            )
+            self._audit(
+                conn, decision_id, "decision_discarded", f"telegram:{telegram_user_id}",
+                decision["status"], "CANCELLED",
+            )
+        return self.get_decision(decision_id)
+
+    def archive(self, decision_id: str, expected_version: int, telegram_user_id: int) -> dict[str, Any]:
+        with self.transaction() as conn:
+            decision = conn.execute(
+                "SELECT * FROM decision_requests WHERE decision_id=?", (decision_id,),
+            ).fetchone()
+            if not decision:
+                raise NotFoundError("decision not found")
+            if decision["version"] != expected_version:
+                raise ConflictError("decision changed; reload before archiving")
+            if decision["status"] not in ARCHIVEABLE_STATES:
+                raise StateError("this decision can no longer be archived")
+            archived = iso()
+            conn.execute(
+                "UPDATE decision_requests SET status='ARCHIVED',updated_at=?,version=version+1 WHERE decision_id=?",
+                (archived, decision_id),
+            )
+            self._audit(
+                conn, decision_id, "decision_archived", f"telegram:{telegram_user_id}",
+                decision["status"], "ARCHIVED",
+            )
         return self.get_decision(decision_id)
 
     def submit(self, decision_id: str, expected_version: int, telegram_user_id: int) -> dict[str, Any]:
@@ -596,7 +711,7 @@ class Database:
             ).fetchone()
             if not row:
                 raise NotFoundError("execution not found")
-            new_status = "COMPLETED" if success else "BLOCKED"
+            new_status = "ARCHIVED" if success else "BLOCKED"
             conn.execute(
                 "UPDATE execution_attempts SET status=?,error=?,result_json=?,updated_at=? WHERE execution_id=?",
                 (new_status, (error or "")[:4000] or None, canonical_json(result), iso(), execution_id),

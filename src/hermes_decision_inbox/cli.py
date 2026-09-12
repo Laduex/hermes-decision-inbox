@@ -7,6 +7,8 @@ import json
 import os
 import urllib.request
 
+from . import __version__
+
 
 def register_cli(parser: argparse.ArgumentParser) -> None:
     subs = parser.add_subparsers(dest="decision_inbox_command")
@@ -73,7 +75,7 @@ def command(args: argparse.Namespace) -> int:
                 "source_profile": args.profile,
                 "source_session_id": args.session,
                 "source_task_id": args.session,
-                "plugin_version": "0.2.0",
+                "plugin_version": __version__,
             })
         elif sub == "apply-manifest":
             from pathlib import Path

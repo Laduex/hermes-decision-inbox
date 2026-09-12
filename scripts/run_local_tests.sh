@@ -25,7 +25,7 @@ npm audit --audit-level=moderate
 if [[ -d "$hermes_worktree/hermes_cli" ]]; then
   cd "$hermes_worktree"
   PYTHONPATH="$hermes_worktree:$repo_root/src" \
-  "$python_bin" -m pytest "$repo_root/tests/test_plugin.py" -q
+  "$python_bin" -m pytest "$repo_root/tests/test_plugin.py" "$repo_root/tests/test_hermes_contract.py" -q
 else
   echo "Hermes worktree unavailable; real plugin discovery test skipped." >&2
 fi

@@ -7,8 +7,9 @@ plugins:
       settings:
         service_url: http://decision-inbox:8080
         default_expiry_days: 14
-        auto_resume: false
+        auto_resume: true
         wiki_executor_enabled: true
+        general_decisions_enabled: true
 
 platform_toolsets:
   cron: [hermes-cron, decision_inbox]

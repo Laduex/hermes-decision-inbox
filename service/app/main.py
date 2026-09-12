@@ -38,6 +38,14 @@ class ApplyRequest(BaseModel):
     expected_version: int = Field(ge=1)
 
 
+class DiscardRequest(BaseModel):
+    expected_version: int = Field(ge=1)
+
+
+class ArchiveRequest(BaseModel):
+    expected_version: int = Field(ge=1)
+
+
 class SocketHub:
     def __init__(self) -> None:
         self.clients: set[WebSocket] = set()
@@ -154,7 +162,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     @app.get("/api/inbox")
-    async def inbox(tab: str = Query("all", pattern="^(all|new|deferred|completed)$"), _: int = Depends(owner)):
+    async def inbox(tab: str = Query("all", pattern="^(all|new|deferred|completed|archive)$"), _: int = Depends(owner)):
         return {"items": db.inbox(tab)}
 
     @app.get("/api/decisions/{decision_id}")
@@ -172,6 +180,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def submit(decision_id: str, payload: SubmitRequest, user_id: int = Depends(owner)):
         result = db.submit(decision_id, payload.expected_version, user_id)
         await hub.broadcast({"type": "decision_submitted", "decision_id": decision_id})
+        return result
+
+    @app.post("/api/decisions/{decision_id}/discard")
+    async def discard(decision_id: str, payload: DiscardRequest, user_id: int = Depends(owner)):
+        result = db.discard(decision_id, payload.expected_version, user_id)
+        await hub.broadcast({"type": "decision_discarded", "decision_id": decision_id})
+        return result
+
+    @app.post("/api/decisions/{decision_id}/archive")
+    async def archive(decision_id: str, payload: ArchiveRequest, user_id: int = Depends(owner)):
+        result = db.archive(decision_id, payload.expected_version, user_id)
+        await hub.broadcast({"type": "decision_archived", "decision_id": decision_id})
         return result
 
     @app.post("/api/manifests/{manifest_id}/apply")
@@ -195,6 +215,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc)) from None
         await hub.broadcast({"type": "decision_created", "decision_id": result["decision_id"]})
         return result
+
+    @app.get("/internal/v1/decisions")
+    async def internal_decisions(
+        scope: Literal["session", "profile"] = Query("session"),
+        source_session_id: str | None = Query(None, min_length=1, max_length=200),
+        include_resolved: bool = Query(False),
+        limit: int = Query(20, ge=1, le=50),
+        profile: str = Depends(publisher_profile),
+    ):
+        if scope == "session" and not source_session_id:
+            raise HTTPException(status_code=422, detail="source_session_id is required for session scope")
+        return {
+            "scope": scope,
+            "items": db.publisher_inbox(
+                profile,
+                source_session_id=source_session_id if scope == "session" else None,
+                include_resolved=include_resolved,
+                limit=limit,
+            ),
+        }
 
     @app.get("/internal/v1/decisions/{decision_id}")
     async def internal_decision(decision_id: str, profile: str = Depends(publisher_profile)):
