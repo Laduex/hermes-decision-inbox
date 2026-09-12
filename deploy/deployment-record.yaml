@@ -1,12 +1,13 @@
 slug: hermes-decision-inbox
 repository: local validated standalone package
-deployed_at: 2026-09-12T01:20:00+08:00
-source_archive_sha256: ad1381d57d4875dea763aad4d6ad3b21a7085f22e48e3f90a34d7ecfa5fa40d5
-wheel_sha256: dc07cfe91c1221b1d4cfad27577b738a802123c3b71c38d7045766d87df93a5e
+deployed_at: 2026-09-12T09:08:22+08:00
+plugin_source_revision: 27ba2aee4b3c5e1181708d0b9310ef074125f8e2
+source_archive_sha256: 3567f0c3d5ac665d204e27d11d6b5bfe7ce48e7a20fd734b95afad312225f91b
+wheel_sha256: 4c8541b5108e9cd95dda07559fed7094731cf5fa641f63735ff3291510d18a8f
 service_image: hermes-decision-inbox:0.2.0-ui-20260912-8e7bbb3
 service_image_id: sha256:4df7929115d89fe1b92c7450beddd7f2d504e6f980d26af82ed740ae395a3090
-hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.2.0-ad1381d57d48
-hermes_image_id: sha256:d16a3da828fddbc7668b10f67e107d1d8c782324b8daef66db6f30e462e56f1b
+hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.2.1-27ba2ae
+hermes_image_id: sha256:3a70a3a16db00b71c2b960be209f3048e078efd3d815cb5f6c45697e0917f74e
 compose_file: /srv/laduex/apps/hermes-decision-inbox/deploy/compose.hostinger.yaml
 compose_project: deploy
 app_services: [decision-inbox]
@@ -20,19 +21,19 @@ state_mounts:
   - /srv/laduex/state/hermes/home/wiki:read-write-with-preflight-and-backup
 backup_command_or_policy: mode-600 predeployment archive plus SQLite-consistent app backups
 backup_path: /srv/laduex/backups/hermes-decision-inbox/20260912T011500+0800-ui-final
-operational_backup_path: /srv/laduex/backups/hermes-decision-inbox/20260911T231828+0000-cron-routing-fix
+operational_backup_path: /srv/laduex/backups/hermes-decision-inbox/20260912T010312+0000-plugin-0.2.1
 migration_command: automatic idempotent SQLite schema initialization on service start
 rollback_ref:
-  hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-024c92468407
-  app_source: /srv/laduex/backups/hermes-decision-inbox/20260912T011500+0800-ui-final/app-source.tar.gz
-  backup: /srv/laduex/backups/hermes-decision-inbox/20260912T011500+0800-ui-final
+  hermes_image: hermes-agent:prod-parity-4dac5f28-yuna-memory-iris-progress-20260911-decision-inbox-0.2.0-ad1381d57d48
+  app_source: /srv/laduex/backups/hermes-decision-inbox/20260912T010312+0000-plugin-0.2.1/app-source.tar.gz
+  backup: /srv/laduex/backups/hermes-decision-inbox/20260912T010312+0000-plugin-0.2.1
 activation_state: weekly-wiki-only-enabled
 cron_job:
   id: 3bdf2dbbc400
   name: Weekly Memory Wiki Review
   routing_skill: hermes-decision-inbox:decision-inbox-routing
 verification:
-  automated_tests: 43 passed, 2 skipped
+  automated_tests: 47 passed, 2 skipped
   gesture_tests: 5 passed
   package_validation: passed
   plugin_discovery: enabled
@@ -44,6 +45,11 @@ verification:
   cron_routing_skill_load: passed
   cron_decision_inbox_toolset: enabled
   cron_uid_1000_staging_write: passed
+  cron_session_search_guardrail: 5 sequential unique calls; 1 empty query broadened once; no loop halt
+  cron_review_staging: report.md and review.json created for 20260906-20260912-run-20260912T084832+0800
+  cron_dashboard_publish: dec_0c97a08e5406afdb839c990d with 6 cards; notification sent
+  cron_saved_output: /opt/data/cron/output/3bdf2dbbc400/2026-09-12_08-57-16.md
+  plugin_batch_schema: top-level name and batch only
   canary_decision: rejected by owner; no Wiki change
   ui_update: Unified inbox shows Review, Completed, and Archived statuses
   ui_update_2: View opens a read-only decision status deck; Edit remains available before apply
