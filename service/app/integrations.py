@@ -9,6 +9,8 @@ from urllib.parse import quote
 
 import httpx
 
+from hermes_decision_inbox.continuation import decision_continuation_prompt
+
 
 class TelegramSender:
     def __init__(self, token: str, chat_id: str, mini_app_url: str):
@@ -16,7 +18,9 @@ class TelegramSender:
         self.chat_id = chat_id
         self.mini_app_url = mini_app_url
 
-    async def send(self, text: str, button: str | None = None) -> dict[str, Any]:
+    async def send(
+        self, text: str, button: str | None = None, button_url: str | None = None,
+    ) -> dict[str, Any]:
         if not self.token or not self.chat_id:
             raise RuntimeError("Telegram delivery is not configured")
         payload: dict[str, Any] = {"chat_id": self.chat_id, "text": text}
@@ -24,6 +28,7 @@ class TelegramSender:
             payload["reply_markup"] = {"inline_keyboard": [[{
                 "text": button, "url": self.mini_app_url,
             }]]}
+            payload["reply_markup"]["inline_keyboard"][0][0]["url"] = button_url or self.mini_app_url
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(f"https://api.telegram.org/bot{self.token}/sendMessage", json=payload)
             response.raise_for_status()
@@ -101,23 +106,8 @@ class HermesClient:
 
 
 def decision_resume_prompt(manifest: dict[str, Any]) -> str:
-    lines = [
-        "Authenticated Decision Inbox response",
-        f"Decision ID: {manifest['decision_id']}",
-        f"Manifest version: {manifest['submission_version']}",
-    ]
-    for response in manifest["responses"]:
-        if response["outcome"] == "deferred":
-            continue
-        lines.extend([
-            "",
-            f"Card: {response['title']} ({response['card_id']})",
-            f"Selected outcome: {response['outcome']}",
-            f"Selected option: {response.get('selected_option_id') or 'none'}",
-            f"User note: {response.get('note') or 'none'}",
-        ])
-    lines.extend(["", "Continue the original task using this decision. Do not broaden its scope."])
-    return "\n".join(lines)
+    """Backward-compatible name for the exact-session Runs API fallback envelope."""
+    return decision_continuation_prompt(manifest)
 
 
 def wiki_apply_prompt(execution: dict[str, Any], approved: list[str], backup_root: str,

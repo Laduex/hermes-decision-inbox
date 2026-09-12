@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .cli import command, register_cli
 from .schemas import READ_DECISIONS_SCHEMA, REQUEST_DECISION_SCHEMA, SESSION_DECISION_SCHEMA
+from .receiver import ContinuationReceiver, PublicationGuard
 from .tool import build_general_handler, build_handler, build_read_handler, check_available
 
 
@@ -17,7 +18,7 @@ After the tool returns `PUBLISHED`, return `[SILENT]`. The dashboard, not the cr
 """
 
 _GENERAL_PROMPT = """## Session-bound Decision Inbox
-Use `publish_decision` when the current Hermes task needs an explicit user choice before it can continue. Every card must include a concise summary describing what is being decided; it is shown as the short description on the inbox card. Publish only the decision data; the tool attaches the current profile, session, and task IDs. After it returns `PUBLISHED`, return `[SILENT]` and wait for the Decision Inbox to resume the exact session after the user applies the decision. Never use it from a delegated session; return the question to the parent agent instead. Archiving removes the request from the active Inbox without resuming the task.
+Use `publish_decision` when the user explicitly requests Decision Inbox or a primary Hermes task reaches a material choice requiring user judgment. Every card needs a concise summary of what is being decided. Use a stable `name` as the decision stream key: matching names merge in this session, while different names remain independent. Publish only decision data; the tool attaches the profile, physical session, task, surface, and route. After `PUBLISHED`, share the returned `decision_url` in this conversation, say you will continue here after Apply, and pause. Do not return `[SILENT]` for an interactive decision. Never publish from a delegated session; return the choice to the parent. Apply resumes this exact task; Archive closes it without resuming.
 """
 
 _READ_PROMPT = """## Read Decision Inbox
@@ -27,6 +28,12 @@ Use `read_decisions` when you need to check which decisions remain unresolved be
 
 def register(ctx) -> None:
     """Register the tool, CLI, prompt policy, and explicit plugin skills."""
+    publication_guard = PublicationGuard()
+    continuation_receiver = ContinuationReceiver(ctx)
+
+    def publication_recorded(session_id: str, publication: dict, token: str) -> None:
+        publication_guard.record(session_id, publication)
+        continuation_receiver.set_publish_token(token)
     ctx.register_tool(
         name="publish_weekly_wiki_review",
         toolset="decision_inbox",
@@ -40,7 +47,7 @@ def register(ctx) -> None:
         name="publish_decision",
         toolset="decision_inbox",
         schema=SESSION_DECISION_SCHEMA,
-        handler=build_general_handler(ctx),
+        handler=build_general_handler(ctx, on_published=publication_recorded),
         check_fn=lambda: check_available(ctx),
         description="Publish a session-bound decision for user review in the private dashboard.",
         emoji="📬",
@@ -92,3 +99,23 @@ def register(ctx) -> None:
         path = skill_root.joinpath(name, "SKILL.md")
         if path.is_file():
             ctx.register_skill(name=name, path=path, description=f"Decision Inbox: {name}.")
+
+    if hasattr(ctx, "register_hook"):
+        def transform_output(**kwargs):
+            continuation_receiver.capture_secret()
+            continuation_receiver.ensure_started()
+            return publication_guard.transform(**kwargs)
+
+        def ensure_receiver(**_: object):
+            continuation_receiver.capture_secret()
+            continuation_receiver.ensure_started()
+            return None
+
+        ctx.register_hook("transform_llm_output", transform_output)
+        ctx.register_hook("post_llm_call", continuation_receiver.post_llm_call)
+        ctx.register_hook("on_session_start", continuation_receiver.session_started)
+        ctx.register_hook("on_session_reset", continuation_receiver.session_reset)
+        ctx.register_hook("pre_gateway_dispatch", ensure_receiver)
+        continuation_receiver.ensure_started()
+    if hasattr(ctx, "on_unload"):
+        ctx.on_unload(continuation_receiver.stop)

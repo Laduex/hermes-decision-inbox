@@ -26,7 +26,20 @@ The service binds to `127.0.0.1:8088`. Tailscale Serve publishes private HTTPS o
 Install the pinned wheel into the derived Hermes image without editing `/opt/hermes` source. Keep `publish_weekly_wiki_review` limited to Yuna/default and the weekly cron surface. `publish_decision` may be exposed to explicitly permitted primary profiles and task surfaces, but delegated agents must return decisions to their parent agent and cannot publish directly.
 Run the companion service with `DECISION_INBOX_WEEKLY_ONLY=false` when general session decisions are enabled; the weekly-only restriction belongs to the weekly publisher tool, not the shared service.
 
-The weekly cron must attach the qualified plugin skill `hermes-decision-inbox:decision-inbox-routing`; the bare `decision-inbox-routing` name is not resolvable by the cron skill loader. It calls `publish_weekly_wiki_review` with one batch. General tasks use `hermes-decision-inbox:decision-inbox-session-decisions` and `publish_decision`; agents may use `hermes-decision-inbox:decision-inbox-read-decisions` and `read_decisions` to inspect their unresolved queue before publishing or continuing work. The qualified smoke-test Skill `hermes-decision-inbox:decision-inbox-apply-resume-smoke` publishes one harmless receipt decision, returns `[SILENT]`, and verifies that Apply resumes the same session with the pass reply. After `PUBLISHED`, the originating session returns `[SILENT]` until the user applies or archives the decision. Publication failure uses the existing Markdown report delivery.
+The weekly cron must attach the qualified plugin skill `hermes-decision-inbox:decision-inbox-routing`; the bare `decision-inbox-routing` name is not resolvable by the cron skill loader. It calls `publish_weekly_wiki_review` with one batch and retains the verified `[SILENT]` contract. General tasks use `hermes-decision-inbox:decision-inbox-session-decisions` and `publish_decision`; agents may use `hermes-decision-inbox:decision-inbox-read-decisions` and `read_decisions` to inspect their unresolved queue before publishing or continuing work. Interactive publication must post the returned `decision_url` in the originating conversation and pause visibly. Apply injects the complete continuation into that exact task when its route is live, or uses the mutually exclusive exact-session Runs API fallback for non-routable sessions.
+
+Gateway delivery is default-off in Hermes. Enable it only for this trusted plugin in each canary profile:
+
+```yaml
+plugins:
+  entries:
+    hermes-decision-inbox:
+      allow_gateway_injection: true
+      settings:
+        session_delivery_enabled: true
+```
+
+Deploy the service migration before updating the plugin. Canary one ordinary publish/link/Apply flow, then reset the source task before a second Apply and verify the continuation remains queued instead of entering the new task. Enable the remaining profiles only after both checks pass.
 
 The shared Decision Inbox state remains owned by service UID `10001`. Hermes cron UID `1000` receives recursive access plus a default ACL on `/srv/laduex/state/hermes-decision-inbox`, allowing current and newly created review staging paths without making the directory world-writable.
 

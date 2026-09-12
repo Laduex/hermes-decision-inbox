@@ -1,5 +1,6 @@
 import "./style.css";
 import { gestureAction } from "./gestures";
+import { decisionIdFromSearch } from "./deep-link";
 import type { Card, Decision, Outcome } from "./types";
 
 const app = document.querySelector<HTMLElement>("#app")!;
@@ -204,7 +205,7 @@ async function loadInbox(tab: InboxTab = "all", directToCards = false) {
 async function openDecision(id: string, editing = false, viewing = false) {
   current = await api<Decision>(`/api/decisions/${id}`);
   cardIndex = 0;
-  viewMode = viewing;
+  viewMode = viewing || terminalStatuses.has(current.status) || current.cards.every(card => Boolean(card.response));
   editMode = editing && !viewing;
   renderDeck();
 }
@@ -461,6 +462,9 @@ function connectLiveUpdates() {
   };
 }
 
-authenticate().then(() => loadInbox()).catch(error => {
+authenticate().then(() => {
+  const decisionId = decisionIdFromSearch(window.location.search);
+  return decisionId ? openDecision(decisionId) : loadInbox();
+}).catch(error => {
   app.innerHTML = `<section class="shell"><div class="error"><h1>Decision Inbox</h1><p>${escapeHtml(error.message)}</p></div></section>`;
 });

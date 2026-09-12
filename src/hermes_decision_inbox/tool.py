@@ -30,24 +30,32 @@ def _secret(name: str) -> str:
     return str(get_secret(name, "") or "").strip()
 
 
-def _session_is_delegated(session_id: str) -> bool:
-    """Use Hermes's durable session marker; unknown sessions are handled by continuation preflight."""
+def _session_context(session_id: str) -> dict[str, Any]:
+    """Read durable source and route metadata from the physical Hermes session."""
     try:
         from hermes_state import SessionDB
     except ImportError:
-        return False
+        return {}
     try:
         with SessionDB(read_only=True) as db:
             row = db.get_session(session_id)
         if not row:
-            return False
+            return {}
         raw_config = row.get("model_config") or "{}"
         config = json.loads(raw_config) if isinstance(raw_config, str) else raw_config
-        return str(row.get("source") or "").lower() == "subagent" or bool(
-            isinstance(config, dict) and config.get("_delegate_from")
-        )
+        return {
+            "source_surface": str(row.get("source") or "").strip() or None,
+            "source_session_key": str(row.get("session_key") or "").strip() or None,
+            "delegated": str(row.get("source") or "").lower() == "subagent" or bool(
+                isinstance(config, dict) and config.get("_delegate_from")
+            ),
+        }
     except Exception:
-        return False
+        return {}
+
+
+def _session_is_delegated(session_id: str) -> bool:
+    return bool(_session_context(session_id).get("delegated"))
 
 
 def _config_bool(value: Any, default: bool) -> bool:
@@ -63,7 +71,7 @@ def _config_bool(value: Any, default: bool) -> bool:
     raise ValueError("boolean setting must be true or false")
 
 
-def _build_publisher(ctx, request_type, *, weekly: bool):
+def _build_publisher(ctx, request_type, *, weekly: bool, on_published=None):
     """Bind profile-aware configuration without storing cross-profile state."""
     def handle(args: dict[str, Any], **kwargs: Any) -> str:
         try:
@@ -127,12 +135,15 @@ def _build_publisher(ctx, request_type, *, weekly: bool):
                 "status": "ERROR",
                 "error": "Delegated agents cannot notify the client; return this decision to the parent agent.",
             })
+        session_context = _session_context(session_id)
 
         payload = request.model_dump(mode="json", exclude_none=True)
         payload.update({
             "source_profile": profile,
             "source_session_id": session_id,
             "source_task_id": task_id or session_id,
+            "source_surface": session_context.get("source_surface") or kwargs.get("platform"),
+            "source_session_key": session_context.get("source_session_key"),
             "plugin_version": __version__,
             "auto_resume": auto_resume,
             "default_expiry_days": expiry_days,
@@ -141,15 +152,21 @@ def _build_publisher(ctx, request_type, *, weekly: bool):
             result = DecisionInboxClient(service_url, token).publish(payload)
         except DecisionInboxError as exc:
             return _tool_result({"status": "ERROR", "error": str(exc)})
-        return _tool_result({
+        published = {
             "status": "PUBLISHED",
             "decision_id": result["decision_id"],
+            "decision_url": result.get("decision_url") or "",
+            "source_surface": result.get("source_surface") or payload.get("source_surface"),
+            "delivery_mode": result.get("delivery_mode") or "session_api",
             "message": (
                 "Weekly review published. Return [SILENT]."
-                if weekly else "Decision published. Return [SILENT] until the user responds."
+                if weekly else "Decision published. Share the decision_url in this conversation and pause."
             ),
             "deduplicated": bool(result.get("deduplicated")),
-        })
+        }
+        if not weekly and on_published is not None:
+            on_published(session_id, published, token)
+        return _tool_result(published)
 
     return handle
 
@@ -159,9 +176,9 @@ def build_handler(ctx):
     return _build_publisher(ctx, WeeklyWikiReviewRequest, weekly=True)
 
 
-def build_general_handler(ctx):
+def build_general_handler(ctx, on_published=None):
     """Build the general session-bound decision publisher."""
-    return _build_publisher(ctx, SessionDecisionRequest, weekly=False)
+    return _build_publisher(ctx, SessionDecisionRequest, weekly=False, on_published=on_published)
 
 
 def build_read_handler(ctx):

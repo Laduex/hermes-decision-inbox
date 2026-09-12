@@ -22,6 +22,8 @@ def test_publish_auth_and_owner_inbox(settings, single_request):
         )
         assert response.status_code == 200
         decision_id = response.json()["decision_id"]
+        assert response.json()["decision_url"] == f"{settings.mini_app_url}?decision={decision_id}"
+        assert response.json()["delivery_mode"] == "session_api"
 
         owner = owner_headers(client, settings)
         inbox = client.get("/api/inbox?tab=new", headers=owner)
@@ -105,6 +107,64 @@ def test_full_ordinary_api_submission_is_versioned_and_idempotent(settings, sing
             json={"expected_version": reviewed["version"]},
         )
         assert repeated.status_code == 409
+
+
+def test_profile_authenticated_conversation_continuation_lifecycle(settings, single_request):
+    request = dict(single_request)
+    request.update({
+        "source_surface": "discord",
+        "source_session_key": "agent:iris:discord:channel:thread",
+    })
+    with TestClient(create_app(settings)) as client:
+        published = client.post(
+            "/internal/v1/decisions", json=request,
+            headers={"Authorization": "Bearer iris-token"},
+        ).json()
+        assert published["source_surface"] == "discord"
+        assert published["delivery_mode"] == "conversation"
+        owner = owner_headers(client, settings)
+        decision = client.get(f"/api/decisions/{published['decision_id']}", headers=owner).json()
+        reviewed = client.put(
+            f"/api/cards/{decision['cards'][0]['card_id']}/response",
+            headers=owner,
+            json={"card_version": 1, "outcome": "recommended", "note": "Ship it"},
+        ).json()
+        submitted = client.post(
+            f"/api/decisions/{decision['decision_id']}/submit",
+            headers=owner,
+            json={"expected_version": reviewed["version"]},
+        ).json()
+        assert submitted["status"] == "QUEUED_FOR_RESUME"
+
+        denied = client.get(
+            "/internal/v1/continuations",
+            headers={"Authorization": "Bearer default-token"},
+        )
+        assert denied.json()["items"] == []
+        pending = client.get(
+            "/internal/v1/continuations",
+            headers={"Authorization": "Bearer iris-token"},
+        ).json()["items"]
+        execution_id = pending[0]["execution_id"]
+        claimed = client.post(
+            f"/internal/v1/continuations/{execution_id}/claim",
+            headers={"Authorization": "Bearer iris-token"},
+            json={"consumer_id": "iris-canary", "lease_seconds": 60},
+        ).json()
+        assert claimed["manifest"]["responses"][0]["selected_option_label"] == "Use staged deployment"
+        lease = claimed["lease_token"]
+        assert client.post(
+            f"/internal/v1/continuations/{execution_id}/dispatch",
+            headers={"Authorization": "Bearer iris-token"},
+            json={"lease_token": lease},
+        ).status_code == 200
+        completed = client.post(
+            f"/internal/v1/continuations/{execution_id}/complete",
+            headers={"Authorization": "Bearer iris-token"},
+            json={"lease_token": lease, "result": {"assistant_response": "Deployment finished"}},
+        )
+        assert completed.status_code == 200
+        assert completed.json()["status"] == "COMPLETED"
 
 
 def test_owner_can_discard_an_open_decision(settings, single_request):

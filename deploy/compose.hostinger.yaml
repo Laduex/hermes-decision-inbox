@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: service/Dockerfile
-    image: hermes-decision-inbox:v1.5-bdd5f67
+    image: hermes-decision-inbox:v0.3.0-session-aware
     container_name: hermes-decision-inbox
     restart: unless-stopped
     env_file:

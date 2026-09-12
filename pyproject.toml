@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hermes-decision-inbox"
-version = "0.2.1"
-description = "Private Tailscale dashboard for weekly Hermes Memory Wiki reviews"
+version = "0.3.0"
+description = "Private, session-aware Decision Inbox for Hermes tasks and weekly Wiki reviews"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

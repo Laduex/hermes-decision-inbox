@@ -46,6 +46,28 @@ class ArchiveRequest(BaseModel):
     expected_version: int = Field(ge=1)
 
 
+class ContinuationClaimRequest(BaseModel):
+    consumer_id: str = Field(min_length=1, max_length=200)
+    lease_seconds: int = Field(default=90, ge=15, le=300)
+
+
+class ContinuationLeaseRequest(BaseModel):
+    lease_token: str = Field(min_length=20, max_length=500)
+
+
+class ContinuationCompleteRequest(ContinuationLeaseRequest):
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
+class ContinuationFailureRequest(ContinuationLeaseRequest):
+    error: str = Field(min_length=1, max_length=4000)
+    retryable: bool = True
+
+
+class ContinuationWaitingRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class SocketHub:
     def __init__(self) -> None:
         self.clients: set[WebSocket] = set()
@@ -69,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings.default_expiry_days,
         auto_resume=settings.auto_resume,
         weekly_only=settings.weekly_only,
+        mini_app_url=settings.mini_app_url,
     )
     db.initialize()
     workers = Workers(db, settings)
@@ -87,7 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if worker_task:
             await worker_task
 
-    app = FastAPI(title="Hermes Weekly Wiki Review", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="Hermes Decision Inbox", version="0.3.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.db = db
     app.state.hub = hub
@@ -144,6 +167,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(ValueError)
     async def invalid_value(_: Request, exc: ValueError):
         return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(PermissionError)
+    async def forbidden(_: Request, exc: PermissionError):
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     @app.post("/api/auth/tailscale")
     async def authenticate(request: Request):
@@ -242,6 +269,60 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if profile != "*" and result["source_profile"] != profile:
             raise HTTPException(status_code=403, detail="publisher profile mismatch")
         return result
+
+    @app.get("/internal/v1/continuations")
+    async def pending_continuations(
+        limit: int = Query(10, ge=1, le=25),
+        source_profile: str | None = Query(None, min_length=1, max_length=100),
+        profile: str = Depends(publisher_profile),
+    ):
+        if profile != "*" and source_profile and source_profile != profile:
+            raise HTTPException(status_code=403, detail="publisher profile mismatch")
+        effective_profile = source_profile or profile
+        if effective_profile == "*":
+            raise HTTPException(status_code=422, detail="source_profile is required for wildcard credentials")
+        return {"items": db.pending_continuations(effective_profile, limit)}
+
+    @app.post("/internal/v1/continuations/{execution_id}/claim")
+    async def claim_continuation(
+        execution_id: str, payload: ContinuationClaimRequest,
+        profile: str = Depends(publisher_profile),
+    ):
+        return db.claim_continuation(
+            execution_id, profile, payload.consumer_id, payload.lease_seconds,
+        )
+
+    @app.post("/internal/v1/continuations/{execution_id}/dispatch")
+    async def dispatch_continuation(
+        execution_id: str, payload: ContinuationLeaseRequest,
+        profile: str = Depends(publisher_profile),
+    ):
+        return db.dispatch_continuation(execution_id, profile, payload.lease_token)
+
+    @app.post("/internal/v1/continuations/{execution_id}/complete")
+    async def complete_continuation(
+        execution_id: str, payload: ContinuationCompleteRequest,
+        profile: str = Depends(publisher_profile),
+    ):
+        return db.complete_continuation(
+            execution_id, profile, payload.lease_token, payload.result,
+        )
+
+    @app.post("/internal/v1/continuations/{execution_id}/failure")
+    async def fail_continuation(
+        execution_id: str, payload: ContinuationFailureRequest,
+        profile: str = Depends(publisher_profile),
+    ):
+        return db.fail_continuation(
+            execution_id, profile, payload.lease_token, payload.error, payload.retryable,
+        )
+
+    @app.post("/internal/v1/continuations/{execution_id}/waiting")
+    async def wait_continuation(
+        execution_id: str, payload: ContinuationWaitingRequest,
+        profile: str = Depends(publisher_profile),
+    ):
+        return db.wait_continuation(execution_id, profile, payload.reason)
 
     @app.websocket("/api/ws")
     async def websocket(websocket: WebSocket, token: str = Query(...)):

@@ -37,7 +37,7 @@ Run one harmless end-to-end check of Decision Inbox publication, user Apply, and
    - `option_id`: `received`
    - `label`: `Yes, I received it`
    - `reason`: `Confirms that the Decision Inbox can return the user's choice to the originating session.`
-4. After the tool returns `PUBLISHED`, return exactly `[SILENT]`. Do not continue the task, poll the service, or publish another card.
+4. After the tool returns `PUBLISHED`, post its `decision_url` in the current conversation with the standard “I’ll continue here after you apply it” notice. Do not continue the task, poll the service, or publish another card.
 
 ## Resumed Session
 
@@ -49,7 +49,7 @@ When the original session receives the authenticated Decision Inbox response aft
 
 ## Verification
 
-- The first turn returned `[SILENT]` after one `PUBLISHED` response.
+- The first turn returned one direct Decision Inbox link after one `PUBLISHED` response.
 - The dashboard showed one pending decision tied to the originating profile and session.
 - Applying the recommendation resumed the same profile and session.
 - The resumed agent returned the smoke-test pass message.

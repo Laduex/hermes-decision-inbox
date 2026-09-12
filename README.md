@@ -1,8 +1,8 @@
 # Hermes Decision Inbox
 
-`hermes-decision-inbox` is a standalone Hermes plugin and private web dashboard for explicit user decisions. The dashboard runs continuously behind Tailscale. The original workflow is the Sunday Weekly Memory Wiki Review, and the general `publish_decision` tool lets any permitted Hermes task pause for a user choice and resume its originating session after approval.
+`hermes-decision-inbox` is a standalone Hermes plugin and private web dashboard for explicit user decisions. The dashboard runs continuously behind Tailscale. Any primary Hermes task may publish a decision when the user requests it or a material choice needs user judgment; the tool returns a direct link in that conversation and Apply continues the exact originating task. The Sunday Weekly Memory Wiki Review remains a separate publisher contract.
 
-The cron never edits the canonical Wiki. Telegram is notification-only and sends a link to the private dashboard. The service does not consume Telegram updates and does not change Hermes core. A user can apply a session decision to resume the exact Hermes session, apply selected Wiki changes, or archive the entire decision without resuming the task.
+The cron never edits the canonical Wiki. Telegram is an out-of-band fallback and sends the same decision-specific link to the private dashboard. The service does not consume Telegram updates and does not change Hermes core. Routable sessions use the trusted plugin's gateway injection path; non-routable and legacy sessions retain the exact-session Runs API fallback. A user can apply a session decision, apply selected Wiki changes, or archive the entire decision without resuming the task.
 
 ## Interaction model
 

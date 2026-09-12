@@ -1,7 +1,7 @@
 manifest_version: 2
 api_version: 1
 name: hermes-decision-inbox
-version: 0.2.1
+version: 0.3.0
 description: Private Hermes session decisions and weekly Memory Wiki review publishing for Tailscale.
 author: Vaughn Dazo, Hermes Agent
 license: MIT
@@ -32,4 +32,12 @@ config_schema:
   general_decisions_enabled:
     type: bool
     default: true
+  session_delivery_enabled:
+    type: bool
+    default: true
+    description: Claim and inject continuations for verified live Hermes conversations.
+  continuation_poll_seconds:
+    type: float
+    default: 2.0
+    description: Poll interval for queued conversation continuations.
 tags: [tailscale, wiki, review, workflow]

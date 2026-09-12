@@ -43,7 +43,7 @@ class Workers:
             return False
         try:
             payload = json.loads(item["payload_json"])
-            await self.telegram.send(payload["text"], payload.get("button"))
+            await self.telegram.send(payload["text"], payload.get("button"), payload.get("url"))
         except Exception as exc:
             self.db.finish_notification(item["notification_id"], False, str(exc))
         else:

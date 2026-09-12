@@ -145,10 +145,21 @@ def test_general_handler_publishes_for_current_profile_and_resumes(monkeypatch, 
 
     def publish(self, payload):
         captured.update(payload)
-        return {"decision_id": "dec_general", "deduplicated": False}
+        return {
+            "decision_id": "dec_general",
+            "decision_url": "https://inbox.test/?decision=dec_general",
+            "source_surface": "telegram",
+            "delivery_mode": "conversation",
+            "deduplicated": False,
+        }
 
     monkeypatch.setenv("DECISION_INBOX_PUBLISH_TOKEN", "iris-token")
     monkeypatch.setattr("hermes_decision_inbox.tool.DecisionInboxClient.publish", publish)
+    monkeypatch.setattr("hermes_decision_inbox.tool._session_context", lambda _: {
+        "source_surface": "telegram",
+        "source_session_key": "agent:iris:telegram:dm:424242",
+        "delegated": False,
+    })
     args = {
         key: value for key, value in single_request.items()
         if not key.startswith("source_") and key != "plugin_version"
@@ -158,7 +169,11 @@ def test_general_handler_publishes_for_current_profile_and_resumes(monkeypatch, 
     assert captured["source_profile"] == "iris"
     assert captured["source_session_id"] == "session-1"
     assert captured["source_task_id"] == "task-1"
+    assert captured["source_surface"] == "telegram"
+    assert captured["source_session_key"] == "agent:iris:telegram:dm:424242"
     assert captured["auto_resume"] is True
+    assert result["decision_url"] == "https://inbox.test/?decision=dec_general"
+    assert result["delivery_mode"] == "conversation"
 
 
 def test_read_handler_defaults_to_current_session(monkeypatch):

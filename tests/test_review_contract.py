@@ -32,6 +32,7 @@ def test_apply_resume_smoke_skill_defines_one_card_and_resumed_reply():
 
     assert "Call `publish_decision` exactly once" in text
     assert "option_id`: `received`" in text
-    assert "After the tool returns `PUBLISHED`, return exactly `[SILENT]`" in text
+    assert "After the tool returns `PUBLISHED`, post its `decision_url`" in text
+    assert "I’ll continue here after you apply it" in text
     assert "Decision Inbox smoke test passed: your decision was received and applied to this session." in text
     assert "Do not use from a delegated session" in text

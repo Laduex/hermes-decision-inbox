@@ -9,7 +9,10 @@ from service.app.database import ConflictError, Database, StateError
 def test_publish_deduplicates_within_window(db, single_request):
     first = db.publish(single_request, "iris")
     second = db.publish(single_request, "iris")
-    assert second == {"decision_id": first["decision_id"], "deduplicated": True, "merged": False}
+    assert second["decision_id"] == first["decision_id"]
+    assert second["deduplicated"] is True
+    assert second["merged"] is False
+    assert second["delivery_mode"] == "session_api"
     with db.connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM notification_outbox").fetchone()[0] == 1
 
@@ -124,6 +127,137 @@ def test_additional_session_request_merges_into_open_batch(db, single_request):
     repeated = db.publish(changed, "iris")
     assert repeated["deduplicated"] is True
     assert len(db.get_decision(first["decision_id"])["cards"]) == 2
+
+
+def test_different_stream_names_remain_independent_in_one_session(db, single_request):
+    first = db.publish(single_request, "iris")
+    independent = dict(single_request)
+    independent["name"] = "release-window"
+    independent["title"] = "Choose the release window"
+    second = db.publish(independent, "iris")
+    assert second["decision_id"] != first["decision_id"]
+    assert second["merged"] is False
+
+
+def test_conversation_continuations_are_leased_fifo_with_complete_manifest(settings, single_request):
+    db = Database(
+        settings.database_path,
+        settings.manifest_root,
+        mini_app_url=settings.mini_app_url,
+    )
+    db.initialize()
+
+    def publish_and_submit(name: str, title: str) -> tuple[str, str]:
+        request = dict(single_request)
+        request.update({
+            "name": name,
+            "title": title,
+            "source_surface": "telegram",
+            "source_session_key": "agent:iris:telegram:dm:424242",
+        })
+        decision_id = db.publish(request, "iris")["decision_id"]
+        decision = db.get_decision(decision_id)
+        decision = db.respond(
+            decision["cards"][0]["card_id"], 1, "recommended", None, "Proceed carefully", 424242,
+        )
+        db.submit(decision_id, decision["version"], 424242)
+        with db.connect() as conn:
+            execution_id = conn.execute(
+                "SELECT e.execution_id FROM execution_attempts e "
+                "JOIN submission_manifests m ON m.manifest_id=e.manifest_id "
+                "WHERE m.decision_id=?", (decision_id,),
+            ).fetchone()[0]
+        return decision_id, execution_id
+
+    first_decision, first_execution = publish_and_submit("deployment", "Choose deployment")
+    _, second_execution = publish_and_submit("release-window", "Choose release window")
+    with db.connect() as conn:
+        ready_payload = json.loads(conn.execute(
+            "SELECT payload_json FROM notification_outbox WHERE decision_id=? AND kind='decision_ready'",
+            (first_decision,),
+        ).fetchone()[0])
+    assert ready_payload["url"] == f"{settings.mini_app_url}?decision={first_decision}"
+    pending = db.pending_continuations("iris")
+    assert [item["execution_id"] for item in pending] == [first_execution]
+    assert db.claim_execution() is None
+
+    claimed = db.claim_continuation(first_execution, "iris", "receiver-1", 90)
+    response = claimed["manifest"]["responses"][0]
+    assert claimed["source_session_key"] == "agent:iris:telegram:dm:424242"
+    assert response["selected_option_id"] == "staged"
+    assert response["selected_option_label"] == "Use staged deployment"
+    assert response["selected_option_reason"] == "It provides a reversible production canary."
+    assert response["note"] == "Proceed carefully"
+    db.dispatch_continuation(first_execution, "iris", claimed["lease_token"])
+    completed = db.complete_continuation(
+        first_execution, "iris", claimed["lease_token"], {"assistant_response": "Done"},
+    )
+    assert completed["status"] == "COMPLETED"
+    assert db.get_decision(first_decision)["status"] == "ARCHIVED"
+    assert [item["execution_id"] for item in db.pending_continuations("iris")] == [second_execution]
+
+
+def test_api_surface_uses_runs_fallback_even_when_a_session_key_is_present():
+    assert Database.delivery_mode("api-server", "agent:iris:api:request") == "session_api"
+
+
+def test_continuation_lease_expiry_retry_and_blocking_are_audited(settings, single_request):
+    db = Database(settings.database_path, settings.manifest_root, mini_app_url=settings.mini_app_url)
+    db.initialize()
+    request = dict(single_request)
+    request.update({"source_surface": "slack", "source_session_key": "agent:iris:slack:thread"})
+    decision_id = db.publish(request, "iris")["decision_id"]
+    decision = db.get_decision(decision_id)
+    decision = db.respond(decision["cards"][0]["card_id"], 1, "rejected", None, "Not now", 424242)
+    db.submit(decision_id, decision["version"], 424242)
+    execution_id = db.pending_continuations("iris")[0]["execution_id"]
+
+    db.wait_continuation(execution_id, "iris", "source task is inactive")
+    db.wait_continuation(execution_id, "iris", "source task is still inactive")
+    with db.connect() as conn:
+        alerts = conn.execute(
+            "SELECT COUNT(*) FROM notification_outbox WHERE decision_id=? AND kind='continuation_waiting'",
+            (decision_id,),
+        ).fetchone()[0]
+    assert alerts == 1
+    with db.transaction() as conn:
+        conn.execute(
+            "UPDATE execution_attempts SET next_attempt_at='2000-01-01T00:00:00+00:00' WHERE execution_id=?",
+            (execution_id,),
+        )
+
+    claimed = db.claim_continuation(execution_id, "iris", "receiver-a", 15)
+    with pytest.raises(PermissionError):
+        db.dispatch_continuation(execution_id, "default", claimed["lease_token"])
+    with db.transaction() as conn:
+        conn.execute(
+            "UPDATE execution_attempts SET lease_expires_at='2000-01-01T00:00:00+00:00' WHERE execution_id=?",
+            (execution_id,),
+        )
+    assert db.pending_continuations("iris")[0]["status"] == "QUEUED"
+    claimed = db.claim_continuation(execution_id, "iris", "receiver-b", 15)
+    retried = db.fail_continuation(
+        execution_id, "iris", claimed["lease_token"], "gateway offline", True,
+    )
+    assert retried["status"] == "QUEUED"
+    with db.transaction() as conn:
+        conn.execute(
+            "UPDATE execution_attempts SET next_attempt_at='2000-01-01T00:00:00+00:00' WHERE execution_id=?",
+            (execution_id,),
+        )
+    claimed = db.claim_continuation(execution_id, "iris", "receiver-c", 15)
+    blocked = db.fail_continuation(
+        execution_id, "iris", claimed["lease_token"], "route ownership mismatch", False,
+    )
+    assert blocked["status"] == "BLOCKED"
+    assert db.get_decision(decision_id)["status"] == "BLOCKED"
+    with db.connect() as conn:
+        events = [row[0] for row in conn.execute(
+            "SELECT event_type FROM audit_events WHERE decision_id=? ORDER BY event_id", (decision_id,),
+        )]
+    assert "continuation_claimed" in events
+    assert "continuation_retry" in events
+    assert "continuation_blocked" in events
 
 
 def test_inflight_session_request_is_rejected_with_existing_id(db, single_request):
