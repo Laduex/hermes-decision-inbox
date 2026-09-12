@@ -7,7 +7,9 @@ import json
 import logging
 import os
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .client import DecisionInboxClient, DecisionInboxError
@@ -51,6 +53,7 @@ class InflightContinuation:
     execution_id: str
     lease_token: str
     target_session_id: str
+    source_profile: str
 
 
 class ContinuationReceiver:
@@ -59,13 +62,13 @@ class ContinuationReceiver:
     def __init__(self, ctx) -> None:
         self.ctx = ctx
         self.profile = getattr(ctx, "profile_name", None) or "default"
-        self.consumer_id = f"{self.profile}:{os.getpid()}"
         self.poll_seconds = self._poll_seconds()
         self._task: asyncio.Task | None = None
         self._stopping = False
-        self._active_cli_sessions: set[str] = set()
+        self._active_cli_sessions: dict[str, set[str]] = {}
         self._inflight: dict[str, InflightContinuation] = {}
-        self._publish_token = ""
+        self._publish_tokens: dict[str, str] = {}
+        self._token_lock = threading.Lock()
 
     def _poll_seconds(self) -> float:
         try:
@@ -74,35 +77,104 @@ class ContinuationReceiver:
             return 2.0
         return max(0.5, min(value, 30.0))
 
-    def _enabled(self) -> bool:
-        value = self._get_config("session_delivery_enabled", True)
+    def _enabled(self, profile: str | None = None) -> bool:
+        value = self._get_config("session_delivery_enabled", True, profile=profile)
         return value is True or str(value).strip().lower() in {"1", "true", "yes", "on"}
 
-    def _get_config(self, key: str, default: Any) -> Any:
+    def _get_config(self, key: str, default: Any, *, profile: str | None = None) -> Any:
         getter = getattr(self.ctx, "get_config", None)
-        return getter(key, default=default) if getter else default
+        if not getter:
+            return default
+        with self._profile_scope(profile or self.profile):
+            return getter(key, default=default)
 
-    def _client(self) -> DecisionInboxClient:
-        service_url = str(self._get_config("service_url", "http://decision-inbox:8080") or "").strip()
-        token = self._publish_token
+    def _client(self, profile: str | None = None) -> DecisionInboxClient:
+        selected = profile or self.profile
+        service_url = str(self._get_config(
+            "service_url", "http://decision-inbox:8080", profile=selected,
+        ) or "").strip()
+        with self._token_lock:
+            token = self._publish_tokens.get(selected, "")
         if not token:
-            self.capture_secret()
-            token = self._publish_token
+            self.capture_secret(selected)
+            with self._token_lock:
+                token = self._publish_tokens.get(selected, "")
         if not service_url or not token:
             raise DecisionInboxError("Decision Inbox continuation receiver is not configured")
         return DecisionInboxClient(service_url, token)
 
-    def set_publish_token(self, token: str) -> None:
-        self._publish_token = str(token or "").strip()
-
-    def capture_secret(self) -> None:
+    @contextmanager
+    def _profile_scope(self, profile: str):
+        manager = getattr(self.ctx, "_manager", None)
+        if manager is None:
+            yield
+            return
         try:
-            self.set_publish_token(_secret("DECISION_INBOX_PUBLISH_TOKEN"))
+            from hermes_cli.profiles import get_profile_dir
+            from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+            profile_home = get_profile_dir(profile)
+            token = set_hermes_home_override(str(profile_home))
         except Exception:
-            logger.debug("No profile secret scope is active for the continuation receiver")
+            yield
+            return
+        try:
+            yield
+        finally:
+            reset_hermes_home_override(token)
+
+    def set_publish_token(self, profile: str, token: str) -> None:
+        clean = str(token or "").strip()
+        if clean:
+            with self._token_lock:
+                self._publish_tokens[profile or "default"] = clean
+
+    def capture_secret(self, profile: str | None = None) -> None:
+        selected = profile or getattr(self.ctx, "profile_name", None) or self.profile
+        try:
+            with self._profile_scope(selected):
+                self.set_publish_token(selected, _secret("DECISION_INBOX_PUBLISH_TOKEN"))
+        except Exception:
+            logger.debug(
+                "No secret scope is active for Decision Inbox profile %s", selected,
+            )
+
+    def capture_configured_profiles(self) -> None:
+        """Load each enabled profile's token without sharing it across profile requests."""
+        manager = getattr(self.ctx, "_manager", None)
+        root = Path(getattr(manager, "home_path", "")) if manager is not None else None
+        profiles = [self.profile]
+        if root and root.is_dir():
+            if root.name == "profiles":
+                root = root.parent
+            profiles = ["default", *sorted(
+                path.name for path in (root / "profiles").iterdir()
+                if path.is_dir() and (path / "config.yaml").is_file()
+            )] if (root / "profiles").is_dir() else [self.profile]
+        for profile in dict.fromkeys(profiles):
+            try:
+                with self._profile_scope(profile):
+                    from agent.secret_scope import build_profile_secret_scope
+                    from hermes_cli.config import load_config_readonly
+                    from hermes_cli.profiles import get_profile_dir
+                    config = load_config_readonly() or {}
+                    plugins = config.get("plugins") or {}
+                    enabled = set(plugins.get("enabled") or [])
+                    disabled = set(plugins.get("disabled") or [])
+                    secrets = build_profile_secret_scope(get_profile_dir(profile))
+                plugin_id = getattr(self.ctx, "plugin_id", "hermes-decision-inbox")
+                if plugin_id not in enabled or plugin_id in disabled:
+                    continue
+                self.set_publish_token(
+                    profile, str(secrets.get("DECISION_INBOX_PUBLISH_TOKEN") or ""),
+                )
+            except Exception:
+                if profile != self.profile:
+                    continue
+                self.capture_secret(profile)
 
     def ensure_started(self) -> None:
-        if self._stopping or not self._enabled() or (self._task and not self._task.done()):
+        self.capture_configured_profiles()
+        if self._stopping or (self._task and not self._task.done()):
             return
         try:
             asyncio.get_running_loop()
@@ -118,35 +190,47 @@ class ContinuationReceiver:
             self._task.cancel()
 
     def session_started(self, session_id: str = "", **_: Any) -> None:
-        self.capture_secret()
+        profile = getattr(self.ctx, "profile_name", None) or self.profile
+        self.capture_secret(profile)
         if session_id:
-            self._active_cli_sessions.add(session_id)
+            self._active_cli_sessions.setdefault(profile, set()).add(session_id)
         self.ensure_started()
 
     def session_reset(self, session_id: str = "", **_: Any) -> None:
-        self._active_cli_sessions.discard(session_id)
+        profile = getattr(self.ctx, "profile_name", None) or self.profile
+        self._active_cli_sessions.setdefault(profile, set()).discard(session_id)
 
     async def run(self) -> None:
         while not self._stopping:
-            try:
-                await self.poll_once()
-            except asyncio.CancelledError:
-                raise
-            except DecisionInboxError as exc:
-                logger.debug("Decision Inbox continuation receiver is waiting: %s", exc)
-            except Exception:
-                logger.exception("Decision Inbox continuation poll failed")
+            with self._token_lock:
+                profiles = sorted(self._publish_tokens)
+            for profile in profiles:
+                if not self._enabled(profile):
+                    continue
+                try:
+                    await self.poll_once(profile)
+                except asyncio.CancelledError:
+                    raise
+                except DecisionInboxError as exc:
+                    logger.debug(
+                        "Decision Inbox continuation receiver is waiting for %s: %s", profile, exc,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Decision Inbox continuation poll failed for profile %s", profile,
+                    )
             await asyncio.sleep(self.poll_seconds)
 
-    async def poll_once(self) -> bool:
-        client = self._client()
-        response = await asyncio.to_thread(client.pending_continuations, 10, self.profile)
+    async def poll_once(self, profile: str | None = None) -> bool:
+        selected = profile or self.profile
+        client = self._client(selected)
+        response = await asyncio.to_thread(client.pending_continuations, 10, selected)
         items = response.get("items") if isinstance(response, dict) else None
         if not isinstance(items, list):
             raise DecisionInboxError("Decision service returned an invalid continuation list")
         did_work = False
         for item in items:
-            route = self._route_target(item)
+            route = self._route_target(item, selected)
             if not route:
                 if item.get("status") == "QUEUED":
                     await asyncio.to_thread(
@@ -157,7 +241,9 @@ class ContinuationReceiver:
                     did_work = True
                 continue
             if item.get("status") == "DISPATCHED":
-                recovered = self._recorded_completion(route, str(item["execution_id"]))
+                recovered = self._recorded_completion(
+                    route, str(item["execution_id"]), selected,
+                )
                 if recovered and recovered.get("assistant_response"):
                     await asyncio.to_thread(
                         client.complete_continuation,
@@ -179,13 +265,13 @@ class ContinuationReceiver:
             claimed = await asyncio.to_thread(
                 client.claim_continuation,
                 str(item["execution_id"]),
-                self.consumer_id,
+                f"{selected}:{os.getpid()}",
                 90,
             )
             lease_token = str(claimed["lease_token"])
             prompt = decision_continuation_prompt(claimed["manifest"], str(item["execution_id"]))
             session_key = str(claimed.get("source_session_key") or "").strip() or None
-            verified_route = self._route_target(claimed)
+            verified_route = self._route_target(claimed, selected)
             if not verified_route or verified_route != route:
                 await asyncio.to_thread(
                     client.fail_continuation, str(item["execution_id"]), lease_token,
@@ -200,9 +286,11 @@ class ContinuationReceiver:
                 execution_id=str(item["execution_id"]),
                 lease_token=lease_token,
                 target_session_id=verified_route,
+                source_profile=selected,
             )
             try:
-                accepted = bool(self.ctx.inject_message(prompt, session_key=session_key))
+                with self._profile_scope(selected):
+                    accepted = bool(self.ctx.inject_message(prompt, session_key=session_key))
             except Exception as exc:
                 self._inflight.pop(str(item["execution_id"]), None)
                 await asyncio.to_thread(
@@ -222,18 +310,22 @@ class ContinuationReceiver:
             did_work = True
         return did_work
 
-    def _route_target(self, item: dict[str, Any]) -> str | None:
+    def _route_target(self, item: dict[str, Any], profile: str | None = None) -> str | None:
+        selected = profile or self.profile
+        if item.get("source_profile") and str(item["source_profile"]) != selected:
+            return None
         original = str(item.get("source_session_id") or "").strip()
         if not original:
             return None
         try:
-            from hermes_state import SessionDB
-            with SessionDB(read_only=True) as db:
-                original_row = db.get_session(original)
-                if not original_row:
-                    return None
-                tip = db.get_compression_tip(original) or original
-                target = db.get_session(tip)
+            with self._profile_scope(selected):
+                from hermes_state import SessionDB
+                with SessionDB(read_only=True) as db:
+                    original_row = db.get_session(original)
+                    if not original_row:
+                        return None
+                    tip = db.get_compression_tip(original) or original
+                    target = db.get_session(tip)
         except Exception:
             logger.exception("Could not verify Hermes continuation route")
             return None
@@ -249,7 +341,8 @@ class ContinuationReceiver:
             return tip
         if saved_surface not in {"cli", "tui"}:
             return None
-        return tip if tip in self._active_cli_sessions or original in self._active_cli_sessions else None
+        active = self._active_cli_sessions.get(selected, set())
+        return tip if tip in active or original in active else None
 
     @staticmethod
     def _message_text(message: dict[str, Any]) -> str:
@@ -262,12 +355,15 @@ class ContinuationReceiver:
             )
         return str(content or "")
 
-    def _recorded_completion(self, session_id: str, execution_id: str) -> dict[str, Any] | None:
+    def _recorded_completion(
+        self, session_id: str, execution_id: str, profile: str | None = None,
+    ) -> dict[str, Any] | None:
         marker = f"{CONTINUATION_MARKER}: {execution_id}"
         try:
-            from hermes_state import SessionDB
-            with SessionDB(read_only=True) as db:
-                messages = db.get_messages(session_id, include_inactive=True, include_compacted=True)
+            with self._profile_scope(profile or self.profile):
+                from hermes_state import SessionDB
+                with SessionDB(read_only=True) as db:
+                    messages = db.get_messages(session_id, include_inactive=True, include_compacted=True)
         except Exception:
             logger.exception("Could not reconcile dispatched Decision Inbox continuation")
             return None
@@ -293,13 +389,19 @@ class ContinuationReceiver:
             return
         execution_id = marker_line.removeprefix(marker).strip()
         inflight = self._inflight.get(execution_id)
-        if not inflight or inflight.target_session_id != session_id or not str(assistant_response or "").strip():
+        profile = getattr(self.ctx, "profile_name", None) or self.profile
+        if (
+            not inflight
+            or inflight.target_session_id != session_id
+            or inflight.source_profile != profile
+            or not str(assistant_response or "").strip()
+        ):
             return
 
         async def acknowledge() -> None:
             try:
                 await asyncio.to_thread(
-                    self._client().complete_continuation,
+                    self._client(inflight.source_profile).complete_continuation,
                     execution_id,
                     inflight.lease_token,
                     {"assistant_response": assistant_response, "source_session_id": session_id},

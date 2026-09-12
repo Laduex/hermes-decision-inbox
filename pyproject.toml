@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hermes-decision-inbox"
-version = "0.3.0"
+version = "0.3.1"
 description = "Private, session-aware Decision Inbox for Hermes tasks and weekly Wiki reviews"
 readme = "README.md"
 requires-python = ">=3.11"

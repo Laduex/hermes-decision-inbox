@@ -165,7 +165,7 @@ def _build_publisher(ctx, request_type, *, weekly: bool, on_published=None):
             "deduplicated": bool(result.get("deduplicated")),
         }
         if not weekly and on_published is not None:
-            on_published(session_id, published, token)
+            on_published(profile, session_id, published, token)
         return _tool_result(published)
 
     return handle

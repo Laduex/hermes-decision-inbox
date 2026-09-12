@@ -31,9 +31,9 @@ def register(ctx) -> None:
     publication_guard = PublicationGuard()
     continuation_receiver = ContinuationReceiver(ctx)
 
-    def publication_recorded(session_id: str, publication: dict, token: str) -> None:
+    def publication_recorded(profile: str, session_id: str, publication: dict, token: str) -> None:
         publication_guard.record(session_id, publication)
-        continuation_receiver.set_publish_token(token)
+        continuation_receiver.set_publish_token(profile, token)
     ctx.register_tool(
         name="publish_weekly_wiki_review",
         toolset="decision_inbox",
@@ -102,7 +102,7 @@ def register(ctx) -> None:
 
     if hasattr(ctx, "register_hook"):
         def transform_output(**kwargs):
-            continuation_receiver.capture_secret()
+            continuation_receiver.capture_secret(ctx.profile_name or "default")
             continuation_receiver.ensure_started()
             return publication_guard.transform(**kwargs)
 

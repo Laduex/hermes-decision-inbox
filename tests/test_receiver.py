@@ -158,8 +158,8 @@ async def test_receiver_injects_complete_envelope_and_acknowledges_once(monkeypa
     client = Client()
     ctx = Context()
     receiver = ContinuationReceiver(ctx)
-    monkeypatch.setattr(receiver, "_client", lambda: client)
-    monkeypatch.setattr(receiver, "_route_target", lambda _: "session-1")
+    monkeypatch.setattr(receiver, "_client", lambda profile=None: client)
+    monkeypatch.setattr(receiver, "_route_target", lambda _, profile=None: "session-1")
     monkeypatch.setattr(receiver, "ensure_started", lambda: None)
 
     assert await receiver.poll_once() is True
@@ -178,3 +178,68 @@ async def test_receiver_injects_complete_envelope_and_acknowledges_once(monkeypa
     await asyncio.gather(*ctx.tasks)
     assert len(client.completed) == 1
     assert client.completed[0][2]["assistant_response"] == "Deployment completed."
+
+
+@pytest.mark.asyncio
+async def test_receiver_keeps_profile_tokens_and_polls_separate_queues(monkeypatch):
+    calls = []
+
+    class Client:
+        def __init__(self, profile):
+            self.profile = profile
+
+        def pending_continuations(self, limit, source_profile):
+            calls.append((self.profile, limit, source_profile))
+            return {"items": []}
+
+    ctx = SimpleNamespace(
+        profile_name="default",
+        get_config=lambda key, default=None: default,
+    )
+    receiver = ContinuationReceiver(ctx)
+    receiver.set_publish_token("default", "default-token")
+    receiver.set_publish_token("iris", "iris-token")
+    monkeypatch.setattr(receiver, "_client", lambda profile=None: Client(profile))
+
+    assert await receiver.poll_once("default") is False
+    assert await receiver.poll_once("iris") is False
+    assert calls == [
+        ("default", 10, "default"),
+        ("iris", 10, "iris"),
+    ]
+
+
+def test_route_verification_rejects_cross_profile_item(monkeypatch):
+    class SessionDB:
+        def __init__(self, read_only=False):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def get_session(self, session_id):
+            return {
+                "id": session_id, "source": "telegram", "session_key": "route-1",
+                "ended_at": None,
+            }
+
+        def get_compression_tip(self, session_id):
+            return session_id
+
+    monkeypatch.setitem(sys.modules, "hermes_state", SimpleNamespace(SessionDB=SessionDB))
+    ctx = SimpleNamespace(
+        profile_name="default",
+        get_config=lambda key, default=None: default,
+    )
+    receiver = ContinuationReceiver(ctx)
+    item = {
+        "source_profile": "iris",
+        "source_session_id": "session-1",
+        "source_session_key": "route-1",
+        "source_surface": "telegram",
+    }
+    assert receiver._route_target(item, "default") is None
+    assert receiver._route_target(item, "iris") == "session-1"
